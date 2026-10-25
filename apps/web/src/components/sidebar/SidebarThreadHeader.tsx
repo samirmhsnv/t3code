@@ -9,11 +9,12 @@ import {
 
 import { cn } from "~/lib/utils";
 import { Button } from "../ui/button";
-import { SidebarInput, SidebarMenuButton } from "../ui/sidebar";
+import { SidebarInput, SidebarMenuButton, SidebarTrigger } from "../ui/sidebar";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 
 export interface SidebarThreadHeaderProps {
   searchFieldRef?: RefObject<HTMLDivElement | null>;
+  sidebarToggleShortcutLabel: string | null | undefined;
   hasProjects: boolean;
   projectScope: ReactNode;
   onNewProject: () => void;
@@ -34,6 +35,7 @@ export interface SidebarThreadHeaderProps {
 
 export function SidebarThreadHeader({
   searchFieldRef,
+  sidebarToggleShortcutLabel,
   hasProjects,
   projectScope,
   onNewProject,
@@ -59,7 +61,22 @@ export function SidebarThreadHeader({
     : "New thread";
 
   return (
-    <div className="flex items-center gap-1">
+    <div
+      className={cn(
+        "flex items-center gap-1",
+        // With macOS traffic lights showing, this row sits beside them and drags the window.
+        "[[data-window-controls-row]_&]:pl-(--sidebar-window-controls-offset) [[data-window-controls-row]_&]:[-webkit-app-region:drag]",
+        "[[data-window-controls-row]_&_:is(button,input)]:[-webkit-app-region:no-drag]",
+      )}
+    >
+      <Tooltip>
+        <TooltipTrigger
+          render={<SidebarTrigger className="shrink-0" aria-label="Toggle main sidebar" />}
+        />
+        <TooltipPopup side="bottom">
+          Toggle main sidebar{sidebarToggleShortcutLabel ? ` (${sidebarToggleShortcutLabel})` : ""}
+        </TooltipPopup>
+      </Tooltip>
       <div
         ref={searchFieldRef}
         className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium text-sidebar-muted-foreground hover:bg-sidebar-row-hover hover:text-sidebar-foreground"

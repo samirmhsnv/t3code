@@ -41,7 +41,6 @@ import { BackgroundThreadAnnouncer } from "./BackgroundThreadAnnouncer";
 import LegacyThreadSidebar from "./LegacySidebar";
 import { useThreadVisitedMigration } from "../hooks/useThreadVisitedMigration";
 import ThreadSidebar from "./Sidebar";
-import { SidebarBrandWidthProbe } from "./sidebar/SidebarChrome";
 import { isAppModalPage, MainAppLocationTracker } from "./sidebar/mainAppLocation";
 import type { SidebarRouteReveal } from "./sidebar/routeReveal";
 import { useSidebarStageBackdropVariant } from "./SidebarStageBackdrop";
@@ -49,7 +48,7 @@ import {
   clampThreadSidebarWidth,
   resolveInitialThreadSidebarWidth,
   resolveThreadSidebarMaximumWidth,
-  resolveThreadSidebarMinimumWidth,
+  THREAD_SIDEBAR_MIN_WIDTH,
   THREAD_MAIN_CONTENT_MIN_WIDTH,
   THREAD_SIDEBAR_WIDTH_STORAGE_KEY,
 } from "./threadSidebarWidth";
@@ -65,6 +64,7 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 import { useThreadRouteRef } from "../hooks/useThreadRouteTarget";
 
 const MACOS_TRAFFIC_LIGHTS_LEFT_INSET = "var(--desktop-window-controls-inset, 90px)";
+const MACOS_WINDOW_CONTROLS_SIDEBAR_MIN_WIDTH = 19.5 * 16;
 
 function subscribeToViewportWidth(onChange: () => void): () => void {
   window.addEventListener("resize", onChange);
@@ -124,7 +124,8 @@ function readInitialThreadSidebarWidth(): number {
   }
 }
 
-function SidebarControl() {
+/** Floats over the content while the sidebar is hidden; the open sidebar shows its own toggle. */
+function SidebarControl({ sidebarHasToggle }: { sidebarHasToggle: boolean }) {
   const usagePageOpen = useLocation({ select: (location) => location.pathname === "/usage" });
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   const { toggleSidebar, isMobile, mobileSheetMounted } = useSidebar();
@@ -181,6 +182,7 @@ function SidebarControl() {
       className={cn(
         "pointer-events-none fixed left-[var(--workspace-controls-left)] top-[var(--workspace-controls-top)] z-50 ml-px flex h-[var(--workspace-topbar-height)] items-center",
         isMobile && mobileSheetMounted && "hidden",
+        sidebarHasToggle && !isMobile && isSidebarVisible && "hidden",
       )}
       data-sidebar-control=""
     >
@@ -336,8 +338,16 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
   const [sidebarWidth, setSidebarWidth] = useState(readInitialThreadSidebarWidth);
   // A clamped drag may not change width, so viewport changes need a separate subscription.
   const viewportWidth = useSyncExternalStore(subscribeToViewportWidth, readViewportWidth);
-  const [brandWidth, setBrandWidth] = useState(0);
-  const sidebarMinimumWidth = resolveThreadSidebarMinimumWidth(brandWidth);
+  const isWindowFullscreen = useSyncExternalStore(
+    subscribeToWindowFullscreen,
+    readWindowFullscreen,
+  );
+  const showsWindowControlsRow = isMacosDesktop && !isWindowFullscreen;
+  // Beside the traffic lights the search row needs extra room to stay usable.
+  const sidebarMinimumWidth =
+    showsWindowControlsRow && !legacySidebarEnabled
+      ? MACOS_WINDOW_CONTROLS_SIDEBAR_MIN_WIDTH
+      : THREAD_SIDEBAR_MIN_WIDTH;
   const sidebarMaximumWidth = resolveThreadSidebarMaximumWidth(viewportWidth, sidebarMinimumWidth);
   const resetSidebarWidth = () => {
     try {
@@ -347,13 +357,13 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
     }
     setSidebarWidth(resolveInitialThreadSidebarWidth(null, viewportWidth));
   };
-  const isWindowFullscreen = useSyncExternalStore(
-    subscribeToWindowFullscreen,
-    readWindowFullscreen,
-  );
   const windowControlsInsetStyle = (
-    isMacosDesktop && !isWindowFullscreen
-      ? { "--workspace-controls-left": MACOS_TRAFFIC_LIGHTS_LEFT_INSET }
+    showsWindowControlsRow
+      ? {
+          "--workspace-controls-left": MACOS_TRAFFIC_LIGHTS_LEFT_INSET,
+          // The sidebar search row starts where the traffic lights end, less its group padding.
+          "--sidebar-window-controls-offset": `calc(${MACOS_TRAFFIC_LIGHTS_LEFT_INSET} - 0.5rem)`,
+        }
       : {}
   ) as CSSProperties;
   const sidebarProviderStyle = {
@@ -389,8 +399,9 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
         data-panel-animations={routePanelAnimationsActive ? "true" : "false"}
         defaultOpen
         style={sidebarProviderStyle}
+        // The sidebar keeps a top row for the traffic lights only while they show.
+        data-window-controls-row={showsWindowControlsRow ? "" : undefined}
       >
-        <SidebarBrandWidthProbe onWidthChange={setBrandWidth} />
         <Sidebar
           side="left"
           collapsible="offcanvas"
@@ -417,7 +428,7 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
         </Sidebar>
         {children}
         <BackgroundThreadAnnouncer />
-        <SidebarControl />
+        <SidebarControl sidebarHasToggle={!legacySidebarEnabled} />
         <NavigationHistoryShortcuts />
         {appModalOpen ? null : <ThreadUndoShortcut />}
         <MainAppLocationTracker />

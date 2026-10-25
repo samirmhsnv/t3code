@@ -2749,13 +2749,14 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   return (
     <>
       <ThreadContextDragGhost />
-      <SidebarChromeHeader isElectron={isElectron} />
+      <SidebarChromeHeader isElectron={isElectron} compact />
       <SidebarContent
         className="min-h-full"
         fixedHeader={
           <SidebarGroup className="z-[1]">
             <SidebarThreadHeader
               searchFieldRef={headerSearchRef}
+              sidebarToggleShortcutLabel={shortcutLabelForCommand(keybindings, "sidebar.toggle")}
               hasProjects={projectGroups.length > 0}
               projectScope={
                 <Combobox
