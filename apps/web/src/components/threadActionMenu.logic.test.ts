@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { buildThreadActionMenuItems, type ThreadActionMenuState } from "./threadActionMenu.logic";
+import { EnvironmentId, ProjectId } from "@t3tools/contracts";
+
+import {
+  buildThreadActionMenuItems,
+  moveTargetProjectId,
+  threadMoveTargets,
+  type ThreadActionMenuState,
+} from "./threadActionMenu.logic";
 
 const baseState: ThreadActionMenuState = {
   canOperate: true,
@@ -70,5 +77,40 @@ describe("buildThreadActionMenuItems", () => {
       (item) => item.id === "archive",
     );
     expect(archiveItem?.disabled).toBe(true);
+  });
+});
+
+describe("thread move targets", () => {
+  it("offers other projects in the same environment and maps the pick back", () => {
+    const local = EnvironmentId.make("env:local");
+    const remote = EnvironmentId.make("env:remote");
+    const project = (environmentId: EnvironmentId, id: string, title: string) => ({
+      environmentId,
+      id: ProjectId.make(id),
+      title,
+    });
+    const targets = threadMoveTargets(
+      [
+        project(local, "project:current", "Current"),
+        project(local, "project:web", "web"),
+        project(remote, "project:remote", "Remote"),
+        project(local, "project:api", "api"),
+      ],
+      { environmentId: local, projectId: ProjectId.make("project:current") },
+    );
+    expect(targets.map((target) => target.title)).toEqual(["api", "web"]);
+
+    const items = buildThreadActionMenuItems({ ...baseState, moveTargets: targets });
+    const move = items.find((item) => item.id === "move-to-project");
+    const picked = move?.children?.[1]?.id;
+    expect(picked && moveTargetProjectId(picked)).toBe("project:web");
+    expect(moveTargetProjectId("rename")).toBeNull();
+
+    const running = buildThreadActionMenuItems({
+      ...baseState,
+      moveTargets: targets,
+      isRunning: true,
+    });
+    expect(running.find((item) => item.id === "move-to-project")?.disabled).toBe(true);
   });
 });

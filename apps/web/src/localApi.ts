@@ -43,17 +43,10 @@ function createBrowserLocalApi(): LocalApi {
       show: async <T extends string>(
         items: readonly ContextMenuItem<T>[],
         position?: { x: number; y: number },
-      ): Promise<T | null> => {
-        if (window.desktopBridge) {
-          return window.desktopBridge.showContextMenu(items, position) as Promise<T | null>;
-        }
-        return showContextMenuFallback(items, position);
-      },
-      // Unlike native menus, the DOM fallback needs dismissal when underlying state disappears.
+      ): Promise<T | null> => showContextMenuFallback(items, position),
+      // Desktop uses the DOM menu too: native menus cannot render item icons on macOS.
       close: async () => {
-        if (!window.desktopBridge) {
-          dismissContextMenu();
-        }
+        dismissContextMenu();
       },
     },
     persistence: {

@@ -204,6 +204,22 @@ and copying a thread reference. A copied reference uses the thread's pull reques
 link when available, otherwise its thread ID. See [keybindings](./keybindings.md)
 for custom configuration.
 
+## Work on threads side by side
+
+On web and desktop, drag a thread from the sidebar onto the drop zone at the
+right of the conversation, or choose **Open in split view** from its menu. The
+thread opens beside the current one. Up to five threads fit side by side,
+fewer in a narrow window; once there is no room, a new split replaces the
+rightmost one. Keyboard shortcuts act on the main thread. Use the arrows in a
+split thread's bar to make it the main thread, or its close button to close it.
+
+## Move a thread to another project
+
+Choose **Move to project** from a thread's menu and pick a project on the same
+machine. Stop a running thread first. The thread's worktree, branch, and linked
+pull requests stay with the old project, and the next message runs in the new
+project's folder.
+
 ## Inspect agent work
 
 **Limited** means the provider stopped on a usage or rate limit. The conversation

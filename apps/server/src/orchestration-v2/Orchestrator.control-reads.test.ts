@@ -32,6 +32,7 @@ import * as EffectOutbox from "./EffectOutbox.ts";
 import * as EventSink from "./EventSink.ts";
 import * as Orchestrator from "./Orchestrator.ts";
 import * as ProjectionStore from "./ProjectionStore.ts";
+import * as ProjectStore from "./ProjectStore.ts";
 import * as ProviderAdapterRegistry from "./ProviderAdapterRegistry.ts";
 import * as ProviderReplayHarness from "./testkit/ProviderReplayHarness.ts";
 import type * as ProviderAdapter from "@t3tools/provider-core/server/ProviderAdapter";
@@ -49,6 +50,7 @@ const layerDatabase = SqlitePersistence.layerMemory;
 const layerTest = Layer.mergeAll(
   layerDatabase,
   ProjectionStore.layer.pipe(Layer.provide(layerDatabase)),
+  ProjectStore.layer.pipe(Layer.provide(layerDatabase)),
   EffectOutbox.layer.pipe(Layer.provide(layerDatabase)),
   ProviderReplayHarness.layerWithRegistry(
     { name: "control-reads" },
@@ -1366,5 +1368,76 @@ it.effect("explicit settle clears snooze atomically and stays idempotent after r
     } as const;
     assert.deepInclude(yield* projections.getThreadShell(threadId), active);
     assert.deepInclude((yield* projections.getThreadProjection(threadId)).thread, active);
+  }).pipe(Effect.provide(layerTest)),
+);
+
+it.effect("moves a thread to another project and leaves its old workspace behind", () =>
+  Effect.gen(function* () {
+    const orchestrator = yield* Orchestrator.OrchestratorV2;
+    const projections = yield* ProjectionStore.ProjectionStoreV2;
+    const projects = yield* ProjectStore.ProjectStoreV2;
+    const threadId = ThreadId.make("thread:move-project");
+    const target = ProjectId.make("project:move-target");
+    const now = DateTime.formatIso(yield* DateTime.now);
+    yield* projects.apply({
+      sequence: 0,
+      eventId: EventId.make(`created:${target}`),
+      aggregateKind: "project",
+      aggregateId: target,
+      occurredAt: now,
+      commandId: null,
+      causationEventId: null,
+      correlationId: null,
+      metadata: {},
+      type: "project.created",
+      payload: {
+        projectId: target,
+        title: "Target",
+        workspaceRoot: "/work/target",
+        defaultModelSelection: null,
+        scripts: [],
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+    yield* orchestrator.dispatch({
+      type: "thread.create",
+      commandId: CommandId.make("create-move-project"),
+      threadId,
+      projectId: ProjectId.make("project:move-source"),
+      title: "Movable",
+      modelSelection,
+      runtimeMode: "full-access",
+      interactionMode: "default",
+      branch: "feature/source",
+      worktreePath: "/work/source-worktree",
+      createdBy: "user",
+      creationSource: "web",
+    });
+
+    const missing = yield* orchestrator
+      .dispatch({
+        type: "thread.metadata.update",
+        commandId: CommandId.make("move-missing-project"),
+        threadId,
+        projectId: ProjectId.make("project:missing"),
+      })
+      .pipe(Effect.result);
+    assert.isTrue(Result.isFailure(missing));
+
+    yield* orchestrator.dispatch({
+      type: "thread.metadata.update",
+      commandId: CommandId.make("move-project"),
+      threadId,
+      projectId: target,
+    });
+    const moved = yield* projections.getThreadProjection(threadId);
+    assert.deepInclude(moved.thread, {
+      projectId: target,
+      title: "Movable",
+      branch: null,
+      worktreePath: null,
+    });
+    assert.deepInclude(yield* projections.getThreadShell(threadId), { projectId: target });
   }).pipe(Effect.provide(layerTest)),
 );

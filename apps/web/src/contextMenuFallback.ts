@@ -32,6 +32,10 @@ const ICON_PATHS: Record<string, ReadonlyArray<{ tag: string; attrs: Record<stri
     },
     { tag: "path", attrs: { d: "m15 5 4 4" } },
   ],
+  "columns-2": [
+    { tag: "rect", attrs: { width: "18", height: "18", x: "3", y: "3", rx: "2" } },
+    { tag: "path", attrs: { d: "M12 3v18" } },
+  ],
   copy: [
     { tag: "rect", attrs: { width: "14", height: "14", x: "8", y: "8", rx: "2", ry: "2" } },
     { tag: "path", attrs: { d: "M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" } },
@@ -115,6 +119,16 @@ const ICON_PATHS: Record<string, ReadonlyArray<{ tag: string; attrs: Record<stri
     { tag: "circle", attrs: { cx: "9", cy: "7", r: "4" } },
     { tag: "line", attrs: { x1: "19", x2: "19", y1: "8", y2: "14" } },
     { tag: "line", attrs: { x1: "22", x2: "16", y1: "11", y2: "11" } },
+  ],
+  "folder-input": [
+    {
+      tag: "path",
+      attrs: {
+        d: "M2 9V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H20a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-1.73",
+      },
+    },
+    { tag: "path", attrs: { d: "M2 13h10" } },
+    { tag: "path", attrs: { d: "m9 16 3-3-3-3" } },
   ],
   "folder-tree": [
     {
@@ -294,6 +308,7 @@ export function showContextMenuFallback<T extends string>(
       menu.style.left = `${preferredLeft}px`;
       menu.style.top = `${preferredTop}px`;
       menu.dataset.level = String(level);
+      menu.style.transformOrigin = "top left";
 
       const inner = document.createElement("div");
       inner.className =
@@ -477,6 +492,15 @@ export function showContextMenuFallback<T extends string>(
       requestAnimationFrame(() => {
         clampMenuPosition(menu, preferredLeft, preferredTop);
       });
+      if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        menu.animate(
+          [
+            { opacity: 0, transform: "scale(0.97)" },
+            { opacity: 1, transform: "scale(1)" },
+          ],
+          { duration: 120, easing: "cubic-bezier(0.2, 0, 0, 1)" },
+        );
+      }
     };
 
     document.addEventListener("keydown", onKeyDown);

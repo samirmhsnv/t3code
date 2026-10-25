@@ -3,10 +3,14 @@ import type { ScopedThreadRef } from "@t3tools/contracts";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
+import { cn } from "~/lib/utils";
+
 import ChatView from "./ChatView";
 import { BackgroundThreadContext } from "./chat/backgroundThread";
 import { resolveDraftPromotionNavigationTarget, threadHasStarted } from "./ChatView.logic";
 import { waitForDraftHeroTransition } from "./chat/draftHeroTransition";
+import { useSplitViewStore } from "../splitViewStore";
+import { SplitViewDropZone } from "./SplitThreadView";
 import { SidebarInset } from "./ui/sidebar";
 import {
   finalizePromotedDraftThreadByRef,
@@ -37,6 +41,7 @@ export function ThreadRouteView({
   background?: boolean;
 }) {
   const navigate = useNavigate();
+  const splitOpen = useSplitViewStore((store) => store.splitThreadRefs.length > 0);
   const draftId = target.kind === "draft" ? target.draftId : null;
   const draftSession = useComposerDraftStore((store) =>
     draftId === null ? null : store.getDraftSession(draftId),
@@ -194,10 +199,17 @@ export function ThreadRouteView({
 
   return (
     <SidebarInset
-      className="h-svh min-h-0 overflow-hidden overscroll-y-none md:h-dvh"
+      className={cn(
+        "h-svh min-h-0 overflow-hidden overscroll-y-none md:h-dvh",
+        // Contain the header's fixed controls so they stay in this pane, not over the split.
+        splitOpen && "[contain:layout]",
+      )}
       inert={background}
     >
       <BackgroundThreadContext value={background}>{view}</BackgroundThreadContext>
+      {background || view === null ? null : (
+        <SplitViewDropZone primaryThreadRef={serverThreadRef} />
+      )}
     </SidebarInset>
   );
 }

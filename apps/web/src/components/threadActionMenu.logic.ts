@@ -1,8 +1,9 @@
-import type { ContextMenuItem } from "@t3tools/contracts";
+import { type ContextMenuItem, type EnvironmentId, ProjectId } from "@t3tools/contracts";
 import type { SnoozePreset } from "@t3tools/client-runtime/state/thread-settled";
 
 export type ThreadActionMenuId =
   | "new-thread-on-branch"
+  | "open-split"
   | "filter-by-project"
   | "project-settings"
   | "pin"
@@ -18,6 +19,8 @@ export type ThreadActionMenuId =
   | "rename"
   | "regenerate-title"
   | "mark-unread"
+  | "move-to-project"
+  | `move-to:${string}`
   | "share-guest"
   | "copy"
   | "copy-path"
@@ -89,12 +92,47 @@ export interface ThreadActionMenuState {
   readonly snoozePresets: ReadonlyArray<SnoozePreset>;
   /** Guest links need their own grant, so the caller checks it instead of `canOperate`. */
   readonly canShareWithGuest?: boolean;
+  /** Offered from the sidebar only; the chat header already shows its thread. */
+  readonly canOpenInSplit?: boolean;
+  /** Other projects in the thread's environment; threads cannot move across environments. */
+  readonly moveTargets?: ReadonlyArray<ThreadMoveTarget>;
+}
+
+export interface ThreadMoveTarget {
+  readonly projectId: ProjectId;
+  readonly title: string;
+}
+
+const MOVE_TO_PREFIX = "move-to:";
+
+export function threadMoveTargets(
+  projects: ReadonlyArray<{
+    readonly environmentId: EnvironmentId;
+    readonly id: ProjectId;
+    readonly title: string;
+  }>,
+  thread: { readonly environmentId: EnvironmentId; readonly projectId: ProjectId },
+): ReadonlyArray<ThreadMoveTarget> {
+  return projects
+    .filter(
+      (project) =>
+        project.environmentId === thread.environmentId && project.id !== thread.projectId,
+    )
+    .map((project) => ({ projectId: project.id, title: project.title }))
+    .toSorted((left, right) => left.title.localeCompare(right.title));
+}
+
+export function moveTargetProjectId(action: ThreadActionMenuId): ProjectId | null {
+  return action.startsWith(MOVE_TO_PREFIX)
+    ? ProjectId.make(action.slice(MOVE_TO_PREFIX.length))
+    : null;
 }
 
 /** Local navigation, read markers, and copying remain available to read-only clients. */
 export function threadActionRequiresOperate(action: ThreadActionMenuId): boolean {
   return ![
     "new-thread-on-branch",
+    "open-split",
     "project-settings",
     "mark-unread",
     "share-guest",
@@ -109,6 +147,9 @@ export function buildThreadActionMenuItems(
   state: ThreadActionMenuState,
 ): ReadonlyArray<ContextMenuItem<ThreadActionMenuId>> {
   const items: ReadonlyArray<ContextMenuItem<ThreadActionMenuId>> = [
+    ...(state.canOpenInSplit
+      ? [{ id: "open-split" as const, label: "Open in split view", icon: "columns-2" }]
+      : []),
     ...(state.branch
       ? [
           {
@@ -211,6 +252,21 @@ export function buildThreadActionMenuItems(
         { id: "copy-thread-id", label: "Thread ID", icon: "hash" },
       ],
     },
+    ...(state.moveTargets && state.moveTargets.length > 0
+      ? [
+          {
+            id: "move-to-project" as const,
+            label: "Move to project",
+            icon: "folder-input",
+            disabled: state.isRunning,
+            children: state.moveTargets.map((target) => ({
+              id: `${MOVE_TO_PREFIX}${target.projectId}` as const,
+              label: target.title,
+              icon: "folder",
+            })),
+          },
+        ]
+      : []),
     { id: "project-settings", label: "Project settings", icon: "settings" },
     {
       id: "archive",

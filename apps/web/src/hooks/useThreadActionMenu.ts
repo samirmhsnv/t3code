@@ -18,7 +18,9 @@ import { useRouter } from "@tanstack/react-router";
 import { resolveSnoozePresets } from "../components/Sidebar.snooze";
 import {
   buildThreadActionMenuItems,
+  moveTargetProjectId,
   threadActionRequiresOperate,
+  threadMoveTargets,
   type ThreadActionMenuId,
 } from "../components/threadActionMenu.logic";
 import { stackedThreadToast, toastManager } from "../components/ui/toast";
@@ -130,6 +132,7 @@ export function useThreadActionMenu(input: {
       };
       const isRegeneratingTitle = thread.titleRegeneration != null;
       const snoozePresets = resolveSnoozePresets(now, timestampFormat);
+      const moveTargets = threadMoveTargets(projects, thread);
       const items = buildThreadActionMenuItems({
         canOperate: readEnvironmentScope(threadRef.environmentId, AuthOrchestrationOperateScope),
         branch: thread.branch ?? null,
@@ -144,6 +147,7 @@ export function useThreadActionMenu(input: {
         supports,
         snoozePresets,
         canShareWithGuest,
+        moveTargets,
       });
       const clicked = await settlePromise(() => api.contextMenu.show(items, position));
       if (clicked._tag === "Failure" || clicked.value === null) return;
@@ -168,6 +172,25 @@ export function useThreadActionMenu(input: {
         if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
           failureToast("Failed to snooze thread", squashAtomCommandFailure(result));
         }
+        return;
+      }
+      const moveTargetId = moveTargetProjectId(action);
+      if (moveTargetId !== null) {
+        const target = moveTargets.find((candidate) => candidate.projectId === moveTargetId);
+        const result = await updateThreadMetadata({
+          environmentId: threadRef.environmentId,
+          input: { threadId: threadRef.threadId, projectId: moveTargetId },
+        });
+        if (result._tag === "Failure") {
+          if (!isAtomCommandInterrupted(result)) {
+            failureToast("Failed to move thread", squashAtomCommandFailure(result));
+          }
+          return;
+        }
+        toastManager.add({
+          type: "success",
+          title: target ? `Moved to ${target.title}` : "Thread moved",
+        });
         return;
       }
       const reportFailure = async (

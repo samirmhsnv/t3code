@@ -59,6 +59,18 @@ export function useThreadContextDragGhost(): ThreadContextDragGhost | null {
   );
 }
 
+/** Re-renders only when a drag starts or ends, not on every pointer move. */
+export function useThreadContextDragActive(): boolean {
+  return useSyncExternalStore(
+    (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+    () => ghost !== null,
+    () => false,
+  );
+}
+
 let overTarget: HTMLElement | null = null;
 
 function findDropTarget(point: { x: number; y: number }): HTMLElement | null {

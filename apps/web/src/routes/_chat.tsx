@@ -6,6 +6,8 @@ import { useEffect, useState } from "react";
 
 import { isCommandPaletteOpen } from "../commandPaletteBus";
 import { ThreadRouteView } from "../components/ThreadRouteView";
+import { SplitThreadPane } from "../components/SplitThreadView";
+import { useSplitViewStore } from "../splitViewStore";
 import { isAppModalPage } from "../components/sidebar/mainAppLocation";
 import { SidebarInset } from "../components/ui/sidebar";
 import type { ThreadRouteTarget } from "../threadRoutes";
@@ -215,6 +217,14 @@ function ChatRouteLayout() {
     setBackgroundTarget(threadTarget);
   }
   const shownTarget = modalOpen ? backgroundTarget : threadTarget;
+  const splitThreadRefs = useSplitViewStore((store) => store.splitThreadRefs);
+  const primaryThreadRef = shownTarget?.kind === "server" ? shownTarget.threadRef : null;
+  const primaryThreadKey = primaryThreadRef ? scopedThreadKey(primaryThreadRef) : null;
+  // Opening a split thread in the main pane closes its pane instead of hiding it until later.
+  useEffect(() => {
+    if (primaryThreadKey !== null) useSplitViewStore.getState().closeSplit(primaryThreadKey);
+  }, [primaryThreadKey]);
+  const showSplit = shownTarget !== null && !modalOpen;
   return (
     <>
       {modalOpen ? null : <ChatRouteGlobalShortcuts />}
@@ -222,7 +232,21 @@ function ChatRouteLayout() {
         <ThreadLinkPrompt threadRef={shownTarget.threadRef} />
       ) : null}
       {shownTarget ? (
-        <ThreadRouteView target={shownTarget} background={modalOpen} />
+        <>
+          <ThreadRouteView target={shownTarget} background={modalOpen} />
+          {showSplit
+            ? splitThreadRefs.map((threadRef) => {
+                const key = scopedThreadKey(threadRef);
+                return key === primaryThreadKey ? null : (
+                  <SplitThreadPane
+                    key={key}
+                    threadRef={threadRef}
+                    primaryThreadRef={primaryThreadRef}
+                  />
+                );
+              })
+            : null}
+        </>
       ) : modalOpen ? (
         <SidebarInset className="h-dvh" />
       ) : (

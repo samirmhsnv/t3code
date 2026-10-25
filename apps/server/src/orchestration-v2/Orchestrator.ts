@@ -609,6 +609,16 @@ function isBlockingRun(run: OrchestrationV2Run): boolean {
   );
 }
 
+function metadataChangesWorkspace(
+  command: Extract<OrchestrationV2ServerCommand, { readonly type: "thread.metadata.update" }>,
+  thread: Pick<OrchestrationV2AppThread, "projectId" | "worktreePath">,
+): boolean {
+  return (
+    (command.projectId !== undefined && command.projectId !== thread.projectId) ||
+    (command.worktreePath !== undefined && command.worktreePath !== thread.worktreePath)
+  );
+}
+
 /** Waiting runs only drain post-terminal output; their agent turn is over and still needs a wake. */
 function hasLiveRun(projection: Pick<OrchestrationV2ThreadProjection, "runs">): boolean {
   return projection.runs.some(
@@ -2901,6 +2911,36 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
           cause: `Thread ${command.threadId} is no longer empty.`,
         });
     }
+    if (
+      command.type === "thread.metadata.update" &&
+      command.projectId !== undefined &&
+      command.projectId !== thread.projectId
+    ) {
+      const target = yield* projects.get(command.projectId).pipe(mapDispatchError(command));
+      if (Option.isNone(target)) {
+        return yield* new OrchestratorDispatchError({
+          commandId: command.commandId,
+          commandType: command.type,
+          cause: `Project ${command.projectId} does not exist.`,
+        });
+      }
+      if (thread.lineage.relationshipToParent === "subagent") {
+        return yield* new OrchestratorSubagentThreadReadOnlyError({
+          commandId: command.commandId,
+          threadId: command.threadId,
+        });
+      }
+      const { runs } = yield* projectionStore
+        .getThreadRecords(command.threadId, ["runs"])
+        .pipe(mapDispatchError(command));
+      if (runs.some((run) => run.status === "queued" || isBlockingRun(run))) {
+        return yield* new OrchestratorDispatchError({
+          commandId: command.commandId,
+          commandType: command.type,
+          cause: `Thread ${command.threadId} is still running. Stop it before moving it to another project.`,
+        });
+      }
+    }
     if (command.type === "thread.archive" && thread.archivedAt !== null) {
       return yield* new OrchestratorDispatchError({
         commandId: command.commandId,
@@ -3063,9 +3103,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       command.type === "provider.switch" ||
       command.type === "thread.archive" ||
       command.type === "thread.settle" ||
-      (command.type === "thread.metadata.update" &&
-        command.worktreePath !== undefined &&
-        command.worktreePath !== thread.worktreePath);
+      (command.type === "thread.metadata.update" && metadataChangesWorkspace(command, thread));
     const providerContext = needsProviderState
       ? yield* projectionStore
           .getThreadProviderContext(
@@ -3345,6 +3383,16 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
                     Date.parse(thread.limitRecovery.resetAt)
                 ? { snoozedUntil: null, snoozedAt: null, lastSnoozeWakeAt: now }
                 : {}),
+            ...(command.projectId === undefined || command.projectId === thread.projectId
+              ? {}
+              : {
+                  projectId: command.projectId,
+                  branch: null,
+                  worktreePath: null,
+                  linkedPullRequest: null,
+                  pullRequests: [],
+                  branchPullRequest: null,
+                }),
             ...(command.branch === undefined ? {} : { branch: command.branch }),
             ...(command.worktreePath === undefined ? {} : { worktreePath: command.worktreePath }),
             ...(command.linkedPullRequest === undefined
@@ -3812,9 +3860,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
     const detachSessionIds = new Set(
       command.type === "thread.archive" || command.type === "thread.settle"
         ? (providerContext?.providerSessions ?? []).map((session) => session.id)
-        : command.type === "thread.metadata.update" &&
-            command.worktreePath !== undefined &&
-            command.worktreePath !== thread.worktreePath
+        : command.type === "thread.metadata.update" && metadataChangesWorkspace(command, thread)
           ? (providerContext?.providerSessions ?? []).map((session) => session.id)
           : command.type === "thread.runtime-mode.set"
             ? (providerContext?.providerSessions ?? [])

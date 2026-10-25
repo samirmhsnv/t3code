@@ -107,6 +107,7 @@ import {
   getThreadKeysToDeselectAfterDelete,
   useThreadSelectionStore,
 } from "../threadSelectionStore";
+import { useSplitViewStore } from "../splitViewStore";
 import { useAcknowledgeThreadWoke, useThreadActions } from "../hooks/useThreadActions";
 import { useHandleNewThread } from "../hooks/useHandleNewThread";
 import { useSidebarProjectGroups } from "../hooks/useSidebarProjectGroups";
@@ -150,6 +151,8 @@ import { ProjectEnvironmentBadge } from "./ProjectEnvironmentBadge";
 import {
   buildDraftActionMenuItems,
   buildThreadActionMenuItems,
+  moveTargetProjectId,
+  threadMoveTargets,
   threadActionRequiresOperate,
 } from "./threadActionMenu.logic";
 import {
@@ -2380,6 +2383,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
         const isSnoozed = snoozedThreadKeysRef.current.has(threadKey);
         const isPinned = thread.pinnedAt != null;
         const snoozePresets = resolveSnoozePresets(new Date(), timestampFormat);
+        const moveTargets = threadMoveTargets(projects, thread);
         const threadProjectGroup =
           projectGroupsRef.current.find((project) =>
             project.memberProjectRefs.some(
@@ -2420,12 +2424,44 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                 titleRegeneration: supportsTitleRegeneration,
               },
               snoozePresets,
+              moveTargets,
+              canOpenInSplit:
+                threadKey !== routeThreadKeyRef.current &&
+                !useSplitViewStore
+                  .getState()
+                  .splitThreadRefs.some((open) => scopedThreadKey(open) === threadKey),
             }),
             position,
           ),
         );
         if (clicked._tag === "Failure" || clicked.value === null) return;
         if (threadActionRequiresOperate(clicked.value) && !checkThreadOperations([thread])) return;
+        const moveTargetId = moveTargetProjectId(clicked.value);
+        if (moveTargetId !== null) {
+          const target = moveTargets.find((candidate) => candidate.projectId === moveTargetId);
+          const result = await updateThreadMetadata({
+            environmentId: threadRef.environmentId,
+            input: { threadId: threadRef.threadId, projectId: moveTargetId },
+          });
+          if (result._tag === "Failure") {
+            if (!isAtomCommandInterrupted(result)) {
+              const error = squashAtomCommandFailure(result);
+              toastManager.add(
+                stackedThreadToast({
+                  type: "error",
+                  title: "Failed to move thread",
+                  description: error instanceof Error ? error.message : "An error occurred.",
+                }),
+              );
+            }
+            return;
+          }
+          toastManager.add({
+            type: "success",
+            title: target ? `Moved to ${target.title}` : "Thread moved",
+          });
+          return;
+        }
         if (clicked.value?.startsWith("snooze:")) {
           const preset =
             clicked.value === "snooze:custom"
@@ -2435,6 +2471,9 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
           return;
         }
         switch (clicked.value) {
+          case "open-split":
+            useSplitViewStore.getState().openSplit(threadRef);
+            return;
           case "filter-by-project":
             if (threadProjectGroup) {
               setProjectScopeKey(
