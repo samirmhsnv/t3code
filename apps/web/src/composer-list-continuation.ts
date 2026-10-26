@@ -203,6 +203,49 @@ function markerLength(marker: ListMarker): number {
   return marker.kind === "task" ? 1 : marker.bullet.length;
 }
 
+/** The list line an indented item sits under, or null when it has none. */
+function parentListLine(value: string, lineStart: number, width: number): string | null {
+  let end = lineStart - 1;
+  while (end > 0) {
+    const start = value.lastIndexOf("\n", end - 1) + 1;
+    const line = value.slice(start, end);
+    end = start - 1;
+    if (line.trim() === "") return null;
+    if (indentWidth(line) < width) return parseListMarker(line) ? line : null;
+  }
+  return null;
+}
+
+/** Rewrites the line's indent and, for ordered items, continues the siblings above or starts at 1. */
+function moveListItem(
+  value: string,
+  line: ReturnType<typeof currentLine>,
+  marker: ListMarker,
+  cursor: number,
+  indent: string,
+): ComposerListEdit {
+  let numberText = "";
+  let end = line.start + marker.indent.length;
+  if (marker.kind === "ordered") {
+    const sibling = previousListMarkerAt(value, line.start, indentWidth(indent));
+    numberText =
+      sibling?.kind === "ordered" && sibling.delimiter === marker.delimiter
+        ? nextOrderedMarkerText(`${sibling.numberText}${sibling.delimiter}`).slice(0, -1)
+        : "1";
+    end += marker.numberText.length;
+  }
+  const replacement = `${indent}${numberText}`;
+  return {
+    start: line.start,
+    end,
+    replacement,
+    cursorAfter:
+      cursor >= end
+        ? cursor + replacement.length - (end - line.start)
+        : line.start + replacement.length,
+  };
+}
+
 /** Nests the item under the one above; a nested ordered item continues its siblings or starts at 1. */
 export function listIndentForTab(
   value: string,
@@ -215,30 +258,24 @@ export function listIndentForTab(
   if (!parsed) return null;
   if (isInsideInlineToken(inlineTokenRanges(value), start)) return null;
   const { marker } = parsed;
-  const width = indentWidth(marker.indent);
   // CommonMark nests a line only when it reaches the parent's content column.
-  const parent = previousListMarkerAt(value, line.start, width);
+  const parent = previousListMarkerAt(value, line.start, indentWidth(marker.indent));
   const step = " ".repeat(parent ? Math.max(2, markerLength(parent) + 1) : 2);
-  if (marker.kind !== "ordered") {
-    return {
-      start: line.start,
-      end: line.start,
-      replacement: step,
-      cursorAfter: start + step.length,
-    };
-  }
-  const sibling = previousListMarkerAt(value, line.start, width + step.length);
-  const numberText =
-    sibling?.kind === "ordered" && sibling.delimiter === marker.delimiter
-      ? nextOrderedMarkerText(`${sibling.numberText}${sibling.delimiter}`).slice(0, -1)
-      : "1";
-  const numberEnd = line.start + marker.indent.length + marker.numberText.length;
-  const replacement = `${step}${marker.indent}${numberText}`;
-  const delta = replacement.length - (numberEnd - line.start);
-  return {
-    start: line.start,
-    end: numberEnd,
-    replacement,
-    cursorAfter: start >= numberEnd ? start + delta : line.start + replacement.length,
-  };
+  return moveListItem(value, line, marker, start, `${step}${marker.indent}`);
+}
+
+/** Moves a nested item out to its parent's level, numbered after the parent. */
+export function listOutdentForShiftTab(
+  value: string,
+  start: number,
+  end: number,
+): ComposerListEdit | null {
+  if (!Number.isInteger(start) || start !== end || start < 0 || start > value.length) return null;
+  const line = currentLine(value, start);
+  const parsed = parseListMarker(line.text);
+  if (!parsed || parsed.marker.indent === "") return null;
+  if (isInsideInlineToken(inlineTokenRanges(value), start)) return null;
+  const parent = parentListLine(value, line.start, indentWidth(parsed.marker.indent));
+  const indent = parent?.match(/^[ \t]*/)?.[0] ?? "";
+  return moveListItem(value, line, parsed.marker, start, indent);
 }

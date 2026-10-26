@@ -20,7 +20,12 @@ import { type PendingUserInput } from "../../session-logic";
 import { type PreviewAnnotationPayload } from "@t3tools/contracts";
 import { type ReviewCommentContext } from "../../reviewCommentContext";
 import { composerTargetKey } from "../../composerDraftStore";
-import { listContinuationForEnter, listIndentForTab } from "../../composer-list-continuation";
+import {
+  type ComposerListEdit,
+  listContinuationForEnter,
+  listIndentForTab,
+  listOutdentForShiftTab,
+} from "../../composer-list-continuation";
 import { type Dispatch, type RefObject, type SetStateAction, useLayoutEffect, useRef } from "react";
 
 /**
@@ -186,7 +191,25 @@ export function useComposerCommandKey(input: {
       sendShortcut,
       prompt: promptRef.current,
     });
+    const applyListEdit = (
+      editFor: (value: string, start: number, end: number) => ComposerListEdit | null,
+    ) => {
+      if (isLiteralPendingAnswer || event.isComposing) return false;
+      const selection = composerEditorRef.current?.readSelectionRange();
+      const snapshot = readComposerSnapshot();
+      if (!selection || selection.start !== selection.end || snapshot.value !== promptRef.current) {
+        return false;
+      }
+      const edit = editFor(snapshot.value, selection.start, selection.end);
+      return (
+        edit !== null &&
+        applyPromptReplacement(edit.start, edit.end, edit.replacement, {
+          expandedCursorAfterReplace: edit.cursorAfter,
+        })
+      );
+    };
     if (key === "Tab" && event.shiftKey && submissionIntent === null) {
+      if (applyListEdit(listOutdentForShiftTab)) return true;
       if (!planModeUiEnabled) return false;
       toggleInteractionMode();
       return true;
@@ -234,27 +257,12 @@ export function useComposerCommandKey(input: {
     }
     if (key === "Enter" && isTaskItem) return false;
     if (
-      !isLiteralPendingAnswer &&
-      !event.isComposing &&
-      (key === "Enter" || (key === "Tab" && !event.shiftKey))
+      key === "Enter" &&
+      applyListEdit((value, start) => listContinuationForEnter(value, start))
     ) {
-      const selection = composerEditorRef.current?.readSelectionRange();
-      const snapshot = readComposerSnapshot();
-      if (selection && selection.start === selection.end && snapshot.value === promptRef.current) {
-        const edit =
-          key === "Enter"
-            ? listContinuationForEnter(snapshot.value, selection.start)
-            : listIndentForTab(snapshot.value, selection.start, selection.end);
-        if (
-          edit &&
-          applyPromptReplacement(edit.start, edit.end, edit.replacement, {
-            expandedCursorAfterReplace: edit.cursorAfter,
-          })
-        ) {
-          return true;
-        }
-      }
+      return true;
     }
+    if (key === "Tab" && !event.shiftKey && applyListEdit(listIndentForTab)) return true;
     return false;
   };
 

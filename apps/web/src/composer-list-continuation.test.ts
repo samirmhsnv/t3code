@@ -3,6 +3,7 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   listContinuationForEnter,
   listIndentForTab,
+  listOutdentForShiftTab,
   nextOrderedMarkerText,
 } from "./composer-list-continuation";
 
@@ -112,5 +113,24 @@ describe("composer list indent", () => {
 
   it("nests bullets two spaces deeper", () => {
     expect(tab("- a\n- b").value).toBe("- a\n  - b");
+  });
+});
+
+describe("composer list outdent", () => {
+  const shiftTab = (value: string) => {
+    const edit = listOutdentForShiftTab(value, value.length, value.length);
+    return edit ? applyEdit(value, edit) : null;
+  };
+
+  it("moves a nested item after its parent", () => {
+    expect(shiftTab("1. a\n2. b\n   1. c")).toBe("1. a\n2. b\n3. c");
+  });
+
+  it("returns a nested bullet to its parent's level", () => {
+    expect(shiftTab("- a\n  - b")).toBe("- a\n- b");
+  });
+
+  it("leaves top-level items to Shift+Tab's other uses", () => {
+    expect(shiftTab("1. a")).toBeNull();
   });
 });
