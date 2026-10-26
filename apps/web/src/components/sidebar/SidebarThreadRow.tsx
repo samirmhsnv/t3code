@@ -1283,24 +1283,6 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
             )}
           >
             <div className="flex h-5 min-w-0 items-center gap-1.5">
-              <span
-                aria-hidden
-                className="pointer-events-none inline-flex shrink-0 items-center gap-1 empty:hidden"
-              >
-                {isRemote && !showsScratchMachine ? (
-                  <span className="inline-flex shrink-0 items-center text-sidebar-muted-foreground/70">
-                    <EnvironmentMachineIcon
-                      aria-hidden
-                      kind={props.environmentMachine}
-                      className="size-3.5"
-                    />
-                  </span>
-                ) : null}
-                <SidebarProviderStack
-                  thread={thread}
-                  providerEntryByInstanceId={props.providerEntryByInstanceId}
-                />
-              </span>
               {draftIndicator}
               {props.project ? (
                 <ProjectFavicon project={props.project} className="size-4 shrink-0" />
@@ -1320,6 +1302,24 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
               ) : (
                 <span className="flex-1" />
               )}
+              <span
+                aria-hidden
+                className="pointer-events-none inline-flex shrink-0 items-center gap-1 empty:hidden"
+              >
+                {isRemote && !showsScratchMachine ? (
+                  <span className="inline-flex shrink-0 items-center text-sidebar-muted-foreground/70">
+                    <EnvironmentMachineIcon
+                      aria-hidden
+                      kind={props.environmentMachine}
+                      className="size-3.5"
+                    />
+                  </span>
+                ) : null}
+                <SidebarProviderStack
+                  thread={thread}
+                  providerEntryByInstanceId={props.providerEntryByInstanceId}
+                />
+              </span>
               {sortable?.isDragging ? (
                 dragDestination
               ) : (
