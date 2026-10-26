@@ -1302,24 +1302,6 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
               ) : (
                 <span className="flex-1" />
               )}
-              <span
-                aria-hidden
-                className="pointer-events-none inline-flex shrink-0 items-center gap-1 empty:hidden"
-              >
-                {isRemote && !showsScratchMachine ? (
-                  <span className="inline-flex shrink-0 items-center text-sidebar-muted-foreground/70">
-                    <EnvironmentMachineIcon
-                      aria-hidden
-                      kind={props.environmentMachine}
-                      className="size-3.5"
-                    />
-                  </span>
-                ) : null}
-                <SidebarProviderStack
-                  thread={thread}
-                  providerEntryByInstanceId={props.providerEntryByInstanceId}
-                />
-              </span>
               {sortable?.isDragging ? (
                 dragDestination
               ) : (
@@ -1457,6 +1439,24 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                   ) : null}
                 </span>
               )}
+              <span
+                aria-hidden
+                className="pointer-events-none inline-flex shrink-0 items-center gap-1 empty:hidden"
+              >
+                {isRemote && !showsScratchMachine ? (
+                  <span className="inline-flex shrink-0 items-center text-sidebar-muted-foreground/70">
+                    <EnvironmentMachineIcon
+                      aria-hidden
+                      kind={props.environmentMachine}
+                      className="size-3.5"
+                    />
+                  </span>
+                ) : null}
+                <SidebarProviderStack
+                  thread={thread}
+                  providerEntryByInstanceId={props.providerEntryByInstanceId}
+                />
+              </span>
               {props.sweepAction !== null ? dragDestination : null}
             </div>
             <div className="mt-0.5 flex min-w-0">
