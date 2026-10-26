@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { listContinuationForEnter, nextOrderedMarkerText } from "./composer-list-continuation";
+import {
+  listContinuationForEnter,
+  listIndentForTab,
+  nextOrderedMarkerText,
+} from "./composer-list-continuation";
 
 function applyEdit(value: string, edit: { start: number; end: number; replacement: string }) {
   return value.slice(0, edit.start) + edit.replacement + value.slice(edit.end);
@@ -89,5 +93,24 @@ describe("composer list renumbering", () => {
     const value = '1. a\n2. @"file\n2. name" \n3. b';
     const edit = listContinuationForEnter(value, value.indexOf("\n"))!;
     expect(applyEdit(value, edit)).toBe('1. a\n2. \n3. @"file\n2. name" \n4. b');
+  });
+});
+
+describe("composer list indent", () => {
+  const tab = (value: string) => {
+    const edit = listIndentForTab(value, value.length, value.length)!;
+    return { value: applyEdit(value, edit), cursor: edit.cursorAfter };
+  };
+
+  it("starts a nested ordered list at 1 under its parent's content", () => {
+    expect(tab("1. plan:\n2. ")).toEqual({ value: "1. plan:\n   1. ", cursor: 15 });
+  });
+
+  it("continues the nested siblings above", () => {
+    expect(tab("1. plan:\n   1. a\n2. b").value).toBe("1. plan:\n   1. a\n   2. b");
+  });
+
+  it("nests bullets two spaces deeper", () => {
+    expect(tab("- a\n- b").value).toBe("- a\n  - b");
   });
 });

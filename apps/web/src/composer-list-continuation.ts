@@ -183,6 +183,27 @@ export function listContinuationForEnter(value: string, cursor: number): Compose
   return { start: cursor, end: cursor, replacement: insertion, cursorAfter };
 }
 
+/** Nearest earlier list line at `width`, stopping where the enclosing item ends. */
+function previousListMarkerAt(value: string, lineStart: number, width: number): ListMarker | null {
+  let end = lineStart - 1;
+  while (end > 0) {
+    const start = value.lastIndexOf("\n", end - 1) + 1;
+    const line = value.slice(start, end);
+    end = start - 1;
+    const lineWidth = indentWidth(line);
+    if (line.trim() === "" || lineWidth < width) return null;
+    if (lineWidth > width) continue;
+    return parseListMarker(line)?.marker ?? null;
+  }
+  return null;
+}
+
+function markerLength(marker: ListMarker): number {
+  if (marker.kind === "ordered") return marker.numberText.length + 1;
+  return marker.kind === "task" ? 1 : marker.bullet.length;
+}
+
+/** Nests the item under the one above; a nested ordered item continues its siblings or starts at 1. */
 export function listIndentForTab(
   value: string,
   start: number,
@@ -190,7 +211,34 @@ export function listIndentForTab(
 ): ComposerListEdit | null {
   if (!Number.isInteger(start) || start !== end || start < 0 || start > value.length) return null;
   const line = currentLine(value, start);
-  if (!parseListMarker(line.text)) return null;
+  const parsed = parseListMarker(line.text);
+  if (!parsed) return null;
   if (isInsideInlineToken(inlineTokenRanges(value), start)) return null;
-  return { start: line.start, end: line.start, replacement: "  ", cursorAfter: start + 2 };
+  const { marker } = parsed;
+  const width = indentWidth(marker.indent);
+  // CommonMark nests a line only when it reaches the parent's content column.
+  const parent = previousListMarkerAt(value, line.start, width);
+  const step = " ".repeat(parent ? Math.max(2, markerLength(parent) + 1) : 2);
+  if (marker.kind !== "ordered") {
+    return {
+      start: line.start,
+      end: line.start,
+      replacement: step,
+      cursorAfter: start + step.length,
+    };
+  }
+  const sibling = previousListMarkerAt(value, line.start, width + step.length);
+  const numberText =
+    sibling?.kind === "ordered" && sibling.delimiter === marker.delimiter
+      ? nextOrderedMarkerText(`${sibling.numberText}${sibling.delimiter}`).slice(0, -1)
+      : "1";
+  const numberEnd = line.start + marker.indent.length + marker.numberText.length;
+  const replacement = `${step}${marker.indent}${numberText}`;
+  const delta = replacement.length - (numberEnd - line.start);
+  return {
+    start: line.start,
+    end: numberEnd,
+    replacement,
+    cursorAfter: start >= numberEnd ? start + delta : line.start + replacement.length,
+  };
 }

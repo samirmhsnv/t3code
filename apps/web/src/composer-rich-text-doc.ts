@@ -31,6 +31,7 @@ import {
   TextSelection,
   type Transaction,
 } from "@tiptap/pm/state";
+import { Decoration, DecorationSet } from "@tiptap/pm/view";
 
 import { splitPromptIntoComposerSegments } from "~/composer-editor-mentions";
 import { nextOrderedMarkerText } from "~/composer-list-continuation";
@@ -270,6 +271,40 @@ function codeBlockSource(
   return { open: `${fence}${language}${content ? "\n" : ""}`, content, close };
 }
 
+const outlineDecorations = new WeakMap<ProseMirrorNode, DecorationSet>();
+
+/** Numbers ordered items nested in ordered items as an outline (`1.1`); the source keeps `1.`. */
+function composerOutlineMarkers(doc: ProseMirrorNode): DecorationSet {
+  const cached = outlineDecorations.get(doc);
+  if (cached) return cached;
+  const decorations: Decoration[] = [];
+  const walk = (node: ProseMirrorNode, start: number, outline: string | null) => {
+    node.forEach((child, offset) => {
+      if (child.isTextblock) return;
+      const pos = start + offset;
+      if (child.type.name === "orderedList") {
+        walk(child, pos + 1, outline);
+        return;
+      }
+      const number =
+        child.type.name === "listItem" && node.type.name === "orderedList"
+          ? /^(\d+)[.)]$/.exec(String(child.attrs.marker))?.[1]
+          : undefined;
+      const own = number === undefined ? null : outline === null ? number : `${outline}.${number}`;
+      if (own !== null && outline !== null) {
+        decorations.push(
+          Decoration.node(pos, pos + child.nodeSize, { "data-outline-marker": own }),
+        );
+      }
+      walk(child, pos + 1, own);
+    });
+  };
+  walk(doc, 0, null);
+  const set = DecorationSet.create(doc, decorations);
+  outlineDecorations.set(doc, set);
+  return set;
+}
+
 const ComposerListItemExtension = ListItem.extend({
   content: LIST_ITEM_CONTENT,
   addAttributes() {
@@ -286,6 +321,14 @@ const ComposerListItemExtension = ListItem.extend({
       Backspace: () => backspaceAcrossList(this.editor),
       Delete: () => deleteAcrossList(this.editor),
     };
+  },
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: new PluginKey("composer-outline-markers"),
+        props: { decorations: (state) => composerOutlineMarkers(state.doc) },
+      }),
+    ];
   },
   // ProseMirror can reuse the parent list when only an item's marker changes.
   // Item metadata lets CSS resize its gutter through CommonMark's nine-digit limit.

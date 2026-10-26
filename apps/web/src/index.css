@@ -1881,6 +1881,10 @@ code {
   content: attr(data-marker) " ";
 }
 
+.composer-tiptap ol > li[data-outline-marker]::marker {
+  content: attr(data-outline-marker) " ";
+}
+
 /* The prompt font and size can differ from the interface, so its gutter must
    also follow the prompt's font metrics. */
 .composer-tiptap ol {
@@ -1917,6 +1921,10 @@ code {
 
 .composer-tiptap ol:has(> li[data-marker-width="10"]) {
   --list-gutter: max(1.25rem, 11ch);
+}
+
+.composer-tiptap ol:has(> li[data-outline-marker]) {
+  --list-gutter: max(1.25rem, 5ch);
 }
 
 .composer-tiptap ul {
