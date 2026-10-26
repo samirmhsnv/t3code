@@ -3752,6 +3752,9 @@ export default function ChatView(props: ChatViewProps) {
                                 availableEnvironments={logicalProjectEnvironments}
                                 composerControlsHostRef={setRestingComposerControlsHost}
                                 contextStripVisible={showComposerContextStrip}
+                                trailingContent={
+                                  <ComposerUsageStrip providers={providerStatuses} />
+                                }
                               />
                             </div>
                           )}
