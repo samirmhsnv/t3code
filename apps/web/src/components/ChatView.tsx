@@ -46,6 +46,7 @@ import {
 import type { UsageLimitSourceSnapshots } from "@t3tools/contracts";
 import { feedbackBannerItem } from "./chat/ComposerFeedback";
 import { useUsageLimitsPanel } from "./chat/useUsageLimitsPanel";
+import { ComposerUsageStrip } from "./chat/ComposerUsageStrip";
 import { useWorktreeSetup } from "./chat/useWorktreeSetup";
 import { useChatShortcuts } from "./chat/useChatShortcuts";
 import { ChatBannerLane } from "./chat/ChatBannerLane";
@@ -3705,6 +3706,7 @@ export default function ChatView(props: ChatViewProps) {
                                 ref={setRestingComposerControlsHost}
                                 className="min-w-0 flex-1"
                               />
+                              <ComposerUsageStrip providers={providerStatuses} />
                             </ComposerSurface.ContextStrip>
                           ) : null}
                           {mountComposerContextStrip && (
