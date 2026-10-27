@@ -2,6 +2,7 @@ import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as FileSystem from "effect/FileSystem";
+import * as Path from "effect/Path";
 
 import {
   GitManagerError,
@@ -32,6 +33,7 @@ import {
 import * as GitManager from "./GitManager.ts";
 import * as GitVcsDriver from "../vcs/GitVcsDriver.ts";
 import * as VcsDriverRegistry from "../vcs/VcsDriverRegistry.ts";
+import { listNestedGitRepositories } from "../vcs/NestedRepositories.ts";
 import { withWorkspaceLease } from "../workspace/workspaceLease.ts";
 
 export class GitWorkflowService extends Context.Service<
@@ -132,9 +134,12 @@ export class GitWorkflowService extends Context.Service<
   }
 >()("t3/git/GitWorkflowService") {}
 
-function nonRepositoryLocalStatus(): VcsStatusLocalResult {
+function nonRepositoryLocalStatus(
+  nestedRepositories: ReadonlyArray<string> = [],
+): VcsStatusLocalResult {
   return {
     isRepo: false,
+    ...(nestedRepositories.length > 0 ? { nestedRepositories } : {}),
     hasPrimaryRemote: false,
     isDefaultRef: false,
     refName: null,
@@ -147,9 +152,9 @@ function nonRepositoryLocalStatus(): VcsStatusLocalResult {
   };
 }
 
-function nonRepositoryStatus(): VcsStatusResult {
+function nonRepositoryStatus(nestedRepositories: ReadonlyArray<string> = []): VcsStatusResult {
   return {
-    ...nonRepositoryLocalStatus(),
+    ...nonRepositoryLocalStatus(nestedRepositories),
     hasUpstream: false,
     aheadCount: 0,
     behindCount: 0,
@@ -174,6 +179,7 @@ export const make = Effect.gen(function* () {
   const git = yield* GitVcsDriver.GitVcsDriver;
   const gitManager = yield* GitManager.GitManager;
   const fileSystem = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
 
   // Nested projects and path aliases must share the checkout's branch-mutation lease.
   const withCheckoutLease = <A, E, R>(rootPath: string, effect: Effect.Effect<A, E, R>) =>
@@ -349,7 +355,11 @@ export const make = Effect.gen(function* () {
     status: Effect.fn("GitWorkflowService.status")(function (input) {
       return detectGitRepositoryForStatus("GitWorkflowService.status", input.cwd).pipe(
         Effect.flatMap((isGitRepository) =>
-          isGitRepository ? gitManager.status(input) : Effect.succeed(nonRepositoryStatus()),
+          isGitRepository
+            ? gitManager.status(input)
+            : listNestedGitRepositories(fileSystem, path, input.cwd).pipe(
+                Effect.map(nonRepositoryStatus),
+              ),
         ),
       );
     }),
@@ -358,7 +368,9 @@ export const make = Effect.gen(function* () {
         Effect.flatMap((isGitRepository) =>
           isGitRepository
             ? gitManager.localStatus(input)
-            : Effect.succeed(nonRepositoryLocalStatus()),
+            : listNestedGitRepositories(fileSystem, path, input.cwd).pipe(
+                Effect.map(nonRepositoryLocalStatus),
+              ),
         ),
       );
     }),

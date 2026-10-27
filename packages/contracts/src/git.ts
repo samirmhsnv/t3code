@@ -215,6 +215,8 @@ const VcsStatusChangeRequest = Schema.Struct({
 
 const VcsStatusLocalShape = {
   isRepo: Schema.Boolean,
+  // Child folders that are Git repositories when the cwd itself is not one.
+  nestedRepositories: Schema.optional(Schema.Array(TrimmedNonEmptyStringSchema)),
   sourceControlProvider: Schema.optional(SourceControlProviderInfo),
   hasPrimaryRemote: Schema.Boolean,
   isDefaultRef: Schema.Boolean,

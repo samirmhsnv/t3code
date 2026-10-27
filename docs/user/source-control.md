@@ -10,6 +10,13 @@ rebases, the files Git brought in are left out. A file stays in the list when th
 committed it, or fixed a conflict in it. Use the branch comparison to review everything that changed
 against your base branch. Restore still returns the complete saved workspace.
 
+### Projects with several repositories
+
+When a project folder is not a Git repository but its subfolders are, **Changes** and
+**Uncommitted** combine every subfolder repository's changes, with paths starting at the
+subfolder's name. Each repository compares against its own base branch. Turn diffs need the
+project folder itself to be a repository, so they are not available for these projects.
+
 ## Connect an account
 
 Install Git and configure authentication on the machine running your T3 Code server. For a remote

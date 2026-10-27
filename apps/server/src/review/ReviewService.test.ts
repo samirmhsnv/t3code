@@ -1,5 +1,6 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, describe, it } from "@effect/vitest";
+import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
@@ -24,6 +25,7 @@ function layer(input: {
   readonly projectRoots?: ReadonlyArray<string> | "unavailable";
   readonly threadWorktrees?: ReadonlyArray<{ worktreePath: string; deleted?: boolean }>;
   readonly gitWorktrees?: ReadonlyArray<string>;
+  readonly reviewDiffPreview?: GitVcsDriver.GitVcsDriver["Service"]["getReviewDiffPreview"];
 }) {
   const projectRoots = input.projectRoots ?? [];
   return ReviewService.layer.pipe(
@@ -82,6 +84,7 @@ function layer(input: {
     Layer.provide(
       Layer.mock(GitVcsDriver.GitVcsDriver)({
         listWorktreePaths: () => Effect.succeed([...(input.gitWorktrees ?? [])]),
+        ...(input.reviewDiffPreview ? { getReviewDiffPreview: input.reviewDiffPreview } : {}),
       }),
     ),
     Layer.provide(
@@ -96,6 +99,65 @@ function layer(input: {
 }
 
 describe("ReviewService", () => {
+  it.effect("merges the diffs of child repositories when the folder is not a repository", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const workspaceRoot = yield* fs.makeTempDirectoryScoped({ prefix: "t3-review-nested-" });
+      const baseDir = yield* fs.makeTempDirectoryScoped({ prefix: "t3-review-base-" });
+      yield* fs.makeDirectory(`${workspaceRoot}/api/.git`, { recursive: true });
+      yield* fs.makeDirectory(`${workspaceRoot}/web/.git`, { recursive: true });
+      yield* fs.makeDirectory(`${workspaceRoot}/notes`, { recursive: true });
+      const requestedCwds: string[] = [];
+      const patchFor = (file: string) =>
+        `diff --git a/${file} b/${file}\n--- a/${file}\n+++ b/${file}\n@@ -1 +1 @@\n-old\n+new\n`;
+
+      const result = yield* Effect.gen(function* () {
+        const review = yield* ReviewService.ReviewService;
+        return yield* review.getDiffPreview({ cwd: workspaceRoot });
+      }).pipe(
+        Effect.provide(
+          layer({
+            workspaceRoot,
+            baseDir,
+            reviewDiffPreview: (request) =>
+              Effect.gen(function* () {
+                requestedCwds.push(request.cwd);
+                const file = request.cwd.endsWith("api") ? "server.ts" : "app.tsx";
+                return {
+                  cwd: request.cwd,
+                  generatedAt: yield* DateTime.now,
+                  sources: (["working-tree", "branch-range"] as const).map((kind) => ({
+                    id: kind,
+                    kind,
+                    title: kind,
+                    baseRef: kind === "working-tree" ? "HEAD" : "main",
+                    headRef: null,
+                    diff: patchFor(file),
+                    diffHash: "hash",
+                    truncated: false,
+                    files: [{ path: file, previousPath: null, additions: 1, deletions: 1 }],
+                  })),
+                };
+              }),
+          }),
+        ),
+      );
+
+      assert.deepStrictEqual(requestedCwds.toSorted(), [
+        `${workspaceRoot}/api`,
+        `${workspaceRoot}/web`,
+      ]);
+      const changes = result.sources.find((source) => source.kind === "branch-range");
+      assert.deepStrictEqual(
+        changes?.files?.map((file) => file.path),
+        ["api/server.ts", "web/app.tsx"],
+      );
+      assert.strictEqual(changes?.baseRef, "main");
+      assert.include(changes?.diff ?? "", "diff --git a/api/server.ts b/api/server.ts");
+      assert.include(changes?.diff ?? "", "+++ b/web/app.tsx");
+    }).pipe(Effect.provide(NodeServices.layer)),
+  );
+
   it.effect("rejects diff preview cwd outside the configured workspace roots", () =>
     Effect.gen(function* () {
       const fs = yield* FileSystem.FileSystem;
