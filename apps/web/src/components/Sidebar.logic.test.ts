@@ -8,6 +8,7 @@ import {
   archiveSelectedThreadEntries,
   deleteSelectedThreadEntries,
   getFallbackThreadIdAfterDelete,
+  groupThreadsByProject,
   hasUnseenCompletion,
   resolveSidebarRowThreadId,
   isSidebarThreadWorking,
@@ -1286,5 +1287,23 @@ describe("pendingSidebarRouteReveal", () => {
     pendingSidebarRouteReveal(reveal, "env:a1");
     expect(pendingSidebarRouteReveal(reveal, null)).toBeNull();
     expect(pendingSidebarRouteReveal(reveal, "env:a1")).toBe("env:a1");
+  });
+});
+
+describe("groupThreadsByProject", () => {
+  it("keeps each project's threads together in the order projects first appear", () => {
+    const thread = (id: string, projectId: string, environmentId = "local") => ({
+      id,
+      projectId,
+      environmentId,
+    });
+    const grouped = groupThreadsByProject([
+      thread("a1", "a"),
+      thread("b1", "b"),
+      thread("a2", "a"),
+      thread("a3", "a", "remote"),
+      thread("b2", "b"),
+    ]);
+    expect(grouped.map((entry) => entry.id)).toEqual(["a1", "a2", "b1", "b2", "a3"]);
   });
 });

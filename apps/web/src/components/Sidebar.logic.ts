@@ -1363,3 +1363,17 @@ export function sortScopedProjectsForSidebar<
       left.id.localeCompare(right.id),
   );
 }
+
+/** Gathers each project's threads together, ordering projects by their first thread. */
+export function groupThreadsByProject<T extends { environmentId: string; projectId: string }>(
+  threads: readonly T[],
+): T[] {
+  const groups = new Map<string, T[]>();
+  for (const thread of threads) {
+    const key = `${thread.environmentId}:${thread.projectId}`;
+    const group = groups.get(key);
+    if (group) group.push(thread);
+    else groups.set(key, [thread]);
+  }
+  return [...groups.values()].flat();
+}

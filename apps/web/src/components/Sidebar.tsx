@@ -53,11 +53,14 @@ import {
 } from "@t3tools/client-runtime/environment";
 import {
   AuthOrchestrationOperateScope,
+  type EnvironmentMachineKind,
   ProjectId,
   type ScopedThreadRef,
   type ThreadId,
 } from "@t3tools/contracts";
 import type { OlderSettledScope } from "@t3tools/client-runtime/state/threads";
+import type { EnvironmentProject } from "@t3tools/client-runtime/state/shell";
+import { EnvironmentMachineIcon } from "./EnvironmentMachineIcon";
 
 import { FolderIcon, ListFilterIcon, PlusIcon, SettingsIcon } from "lucide-react";
 import {
@@ -178,6 +181,7 @@ import {
   shouldNavigateAfterThreadPark,
   sidebarListItemId,
   sidebarThreadKeyAtY,
+  groupThreadsByProject,
   sortInboxThreadsByReturn,
   sortPinnedThreadsForSidebar,
   sortThreadsForSidebar,
@@ -435,8 +439,8 @@ function useSidebarThreads(input: {
   const partitionNextWakeAt = partition.snoozedThreads[0]?.snoozedUntil ?? null;
   if (partitionNextWakeAt !== nextSnoozeWakeAt) setNextSnoozeWakeAt(partitionNextWakeAt);
 
-  const { pinnedThreads, activeThreads, workingThreads, snoozedThreads, settledThreads } =
-    partition;
+  const { pinnedThreads, workingThreads, snoozedThreads, settledThreads } = partition;
+  const activeThreads = groupThreadsByProject(partition.activeThreads);
   // Older settled threads load in pages; the shelf lists them only as far as they are loaded.
   const olderSettledShelf = useOlderSettledShelf({
     scopes: olderSettledScopes([...serverConfigs.keys()], scopedProjectKeys),
@@ -516,6 +520,7 @@ function useSidebarThreads(input: {
     renderedSettledThreads,
     visibleSnoozedThreads,
     visibleWorkingThreads,
+    activeThreads,
     orderedThreadKeys: orderedThreads.map(threadShellKey),
     threadByKey: new Map(orderedThreads.map((thread) => [threadShellKey(thread), thread] as const)),
     settledThreadKeys: new Set(settledThreads.map(threadShellKey)),
@@ -787,6 +792,30 @@ function checkThreadOperations(
 const SIDEBAR_DRAG_DISTANCE = 6;
 
 const SIDEBAR_DRAG_LABEL_HEIGHT = 24;
+
+function SidebarProjectHeader(props: {
+  project: EnvironmentProject | null;
+  label: string;
+  machine: EnvironmentMachineKind | null;
+}) {
+  return (
+    <li className="flex list-none items-center gap-1.5 px-2.5 pt-3 pb-0.5 text-xs font-medium text-sidebar-muted-foreground">
+      {props.project ? (
+        <ProjectFavicon project={props.project} className="size-3.5 shrink-0" />
+      ) : (
+        <FolderIcon aria-hidden className="size-3.5 shrink-0" />
+      )}
+      <span className="min-w-0 truncate">{props.label}</span>
+      {props.machine ? (
+        <EnvironmentMachineIcon
+          aria-hidden
+          kind={props.machine}
+          className="size-3 shrink-0 opacity-60"
+        />
+      ) : null}
+    </li>
+  );
+}
 
 export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReveal }) {
   const {
@@ -3091,6 +3120,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                               providerEntriesByEnvironment.get(thread.environmentId) ??
                               EMPTY_PROVIDER_ENTRIES
                             }
+                            grouped={section === "active"}
                             timestampFormat={timestampFormat}
                             onThreadClick={handleThreadClick}
                             onThreadActivate={navigateToThread}
@@ -3124,11 +3154,31 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                           onDraftContextMenu={handleDraftContextMenu}
                         />,
                       ];
+                      let previousProjectKey: `${EnvironmentId}:${ProjectId}` | null = null;
                       for (const item of sidebarListItems) {
                         if (item.kind === "thread") {
-                          items.push(renderThreadRow(threadByKey.get(item.key)!, item.section));
+                          const thread = threadByKey.get(item.key)!;
+                          const projectKey = `${thread.environmentId}:${thread.projectId}` as const;
+                          if (item.section === "active" && projectKey !== previousProjectKey) {
+                            const project = projectByKey.get(projectKey) ?? null;
+                            items.push(
+                              <SidebarProjectHeader
+                                key={`project-header:${projectKey}`}
+                                project={project}
+                                label={projectDisplayNameByKey.get(projectKey) ?? "No project"}
+                                machine={
+                                  thread.environmentId !== primaryEnvironmentId
+                                    ? (environmentMachineById.get(thread.environmentId) ?? "server")
+                                    : null
+                                }
+                              />,
+                            );
+                          }
+                          previousProjectKey = item.section === "active" ? projectKey : null;
+                          items.push(renderThreadRow(thread, item.section));
                           continue;
                         }
+                        previousProjectKey = null;
                         switch (item.marker) {
                           case "pinned-header":
                             items.push(

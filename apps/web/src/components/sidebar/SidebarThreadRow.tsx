@@ -535,6 +535,8 @@ type SidebarThreadRowProps = {
   project: EnvironmentProject | null;
   projectDisplayName: string | null;
   providerEntryByInstanceId: ReadonlyMap<string, SidebarProviderEntry>;
+  /** Listed under its project's header, so the row leaves out the project. */
+  grouped?: boolean | undefined;
   timestampFormat: TimestampFormat;
   onThreadClick: (event: ReactMouseEvent, threadRef: ScopedThreadRef) => void;
   onThreadActivate: (threadRef: ScopedThreadRef) => void;
@@ -1245,6 +1247,8 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
     prBadge !== null ||
     diff !== null;
 
+  const grouped = props.grouped === true;
+
   return (
     <li
       data-thread-item={threadKey}
@@ -1252,7 +1256,13 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
       {...(fileDropHandlers ?? {})}
       className={cn(
         "list-none py-0.5 [content-visibility:auto]",
-        hasDetailLine ? "[contain-intrinsic-size:auto_72px]" : "[contain-intrinsic-size:auto_54px]",
+        grouped
+          ? hasDetailLine
+            ? "[contain-intrinsic-size:auto_56px]"
+            : "[contain-intrinsic-size:auto_36px]"
+          : hasDetailLine
+            ? "[contain-intrinsic-size:auto_72px]"
+            : "[contain-intrinsic-size:auto_54px]",
         sortable?.isDragging && "relative z-20",
       )}
     >
@@ -1279,28 +1289,37 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
           <div
             className={cn(
               "relative z-10 px-(--sidebar-row-content-inset) py-1.5",
-              hasDetailLine ? "h-[4.5rem]" : "h-[3.375rem]",
+              grouped ? null : hasDetailLine ? "h-[4.5rem]" : "h-[3.375rem]",
             )}
           >
             <div className="flex h-5 min-w-0 items-center gap-1.5">
               {draftIndicator}
-              {props.project ? (
-                <ProjectFavicon project={props.project} className="size-4 shrink-0" />
-              ) : null}
-              {/* Left of the status slot, the pin would slide when hover swaps the
-                label for the wider row controls. */}
-              {pinIndicator}
-              {props.projectDisplayName ? (
-                <span
-                  className={cn(
-                    "min-w-0 flex-1 truncate text-secondary-label text-xs",
-                    shouldRecede ? "font-normal" : "font-medium",
-                  )}
-                >
-                  {props.projectDisplayName}
-                </span>
+              {grouped ? (
+                <>
+                  {pinIndicator}
+                  {title}
+                </>
               ) : (
-                <span className="flex-1" />
+                <>
+                  {props.project ? (
+                    <ProjectFavicon project={props.project} className="size-4 shrink-0" />
+                  ) : null}
+                  {/* Left of the status slot, the pin would slide when hover swaps the
+                    label for the wider row controls. */}
+                  {pinIndicator}
+                  {props.projectDisplayName ? (
+                    <span
+                      className={cn(
+                        "min-w-0 flex-1 truncate text-secondary-label text-xs",
+                        shouldRecede ? "font-normal" : "font-medium",
+                      )}
+                    >
+                      {props.projectDisplayName}
+                    </span>
+                  ) : (
+                    <span className="flex-1" />
+                  )}
+                </>
               )}
               {sortable?.isDragging ? (
                 dragDestination
@@ -1443,7 +1462,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                 aria-hidden
                 className="pointer-events-none inline-flex shrink-0 items-center gap-1 empty:hidden"
               >
-                {isRemote && !showsScratchMachine ? (
+                {isRemote && !showsScratchMachine && !grouped ? (
                   <span className="inline-flex shrink-0 items-center text-sidebar-muted-foreground/70">
                     <EnvironmentMachineIcon
                       aria-hidden
@@ -1459,14 +1478,22 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
               </span>
               {props.sweepAction !== null ? dragDestination : null}
             </div>
-            <div className="mt-0.5 flex min-w-0">
-              {title}
-              {isRegeneratingTitle ? (
+            {grouped ? (
+              isRegeneratingTitle ? (
                 <span role="status" className="sr-only">
                   Regenerating title
                 </span>
-              ) : null}
-            </div>
+              ) : null
+            ) : (
+              <div className="mt-0.5 flex min-w-0">
+                {title}
+                {isRegeneratingTitle ? (
+                  <span role="status" className="sr-only">
+                    Regenerating title
+                  </span>
+                ) : null}
+              </div>
+            )}
             {hasDetailLine ? (
               <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-secondary-label text-xs">
                 {thread.branch ? (
