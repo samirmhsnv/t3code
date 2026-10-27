@@ -134,3 +134,20 @@ export function mergeNestedReviewSources(
     },
   );
 }
+
+/**
+ * Whether `git status --porcelain=v2 --branch` shows a clean checkout level with the remote
+ * default branch, which leaves both review sources empty without running the full diff.
+ */
+export function isQuietRepositoryStatus(status: string, originHead: string | null): boolean {
+  if (originHead === null) return false;
+  let upstream: string | null = null;
+  let aheadBehind: string | null = null;
+  for (const line of status.split("\n")) {
+    if (line.length === 0) continue;
+    if (!line.startsWith("# ")) return false;
+    if (line.startsWith("# branch.upstream ")) upstream = line.slice("# branch.upstream ".length);
+    if (line.startsWith("# branch.ab ")) aheadBehind = line.slice("# branch.ab ".length);
+  }
+  return upstream === originHead && aheadBehind === "+0 -0";
+}

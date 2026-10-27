@@ -5,6 +5,7 @@ import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
 } from "@t3tools/client-runtime/state/runtime";
+import { scopedThreadKey } from "@t3tools/client-runtime/environment";
 import { safeErrorLogAttributes } from "@t3tools/client-runtime/errors";
 import type { ScopedThreadRef, RunId } from "@t3tools/contracts";
 import {
@@ -12,10 +13,12 @@ import {
   CheckIcon,
   ChevronDownIcon,
   Columns2Icon,
+  FolderGit2Icon,
   FolderTreeIcon,
   PilcrowIcon,
   Rows3Icon,
   TextWrapIcon,
+  XIcon,
 } from "lucide-react";
 import { ChevronDown, ChevronRight, ChevronsDownUp, ChevronsUpDown } from "lucide";
 import * as Schema from "effect/Schema";
@@ -255,6 +258,22 @@ export default function DiffPanel({
   const isGitRepo = gitStatusQuery.data?.isRepo ?? true;
   // A folder of separate checkouts has working-tree changes but no turn checkpoints or refs.
   const changesAvailable = isGitRepo || (gitStatusQuery.data?.nestedRepositories?.length ?? 0) > 0;
+  const selectedRepository = useDiffPanelStore((state) =>
+    routeThreadRef ? (state.repositoryByThreadKey[scopedThreadKey(routeThreadRef)] ?? null) : null,
+  );
+  // Narrowed to one child repository, the diff reads that checkout as an ordinary repository.
+  const repositoryFilter =
+    !isGitRepo &&
+    selectedRepository !== null &&
+    gitStatusQuery.data?.nestedRepositories?.includes(selectedRepository)
+      ? selectedRepository
+      : null;
+  const diffCwd =
+    repositoryFilter && activeCwd
+      ? `${activeCwd.replace(/\/+$/, "")}/${repositoryFilter}`
+      : activeCwd;
+  const diffRepositoryRoot = repositoryFilter ? diffCwd : activeRepositoryRoot;
+  const canPickBaseRef = isGitRepo || repositoryFilter !== null;
   const turnDiffSummaries = useThreadCheckpointSummaries(routeThreadRef);
   const orderedTurnDiffSummaries = turnDiffSummaries.toSorted((left, right) => {
     if (left.checkpointTurnCount !== right.checkpointTurnCount) {
@@ -321,9 +340,9 @@ export default function DiffPanel({
     { enabled: isGitRepo && selectedTurn !== undefined },
   );
   const branchDiffPreviewInput =
-    canReadFiles && selectedRunId === null && activeThread && activeCwd
+    canReadFiles && selectedRunId === null && activeThread && diffCwd
       ? {
-          cwd: activeCwd,
+          cwd: diffCwd,
           ...(selectedBaseRef ? { baseRef: selectedBaseRef } : {}),
           ignoreWhitespace: diffIgnoreWhitespace,
         }
@@ -401,7 +420,7 @@ export default function DiffPanel({
     return currentLoadDiffFiles(fileDiff);
   });
   const localBranchRefs = useEnvironmentQuery(
-    isGitRepo &&
+    canPickBaseRef &&
       selectedRunId === null &&
       selectedGitScope === "branch" &&
       activeThread &&
@@ -419,7 +438,7 @@ export default function DiffPanel({
       : null,
   );
   const remoteBranchRefs = useEnvironmentQuery(
-    isGitRepo &&
+    canPickBaseRef &&
       selectedRunId === null &&
       selectedGitScope === "branch" &&
       activeThread &&
@@ -573,7 +592,7 @@ export default function DiffPanel({
       threadRef: routeThreadRef,
       filePath,
       activeCwd,
-      repositoryRoot: activeRepositoryRoot,
+      repositoryRoot: diffRepositoryRoot,
       openInEditor: (targetPath) => {
         void (async () => {
           const result = await openInPreferredEditor(targetPath);
@@ -706,7 +725,19 @@ export default function DiffPanel({
             ) : null}
           </DropdownMenuContent>
         </DropdownMenu>
-        {isGitRepo &&
+        {repositoryFilter && routeThreadRef ? (
+          <Button
+            size="xs"
+            variant="secondary"
+            aria-label={`Show all repositories instead of ${repositoryFilter}`}
+            onClick={() => useDiffPanelStore.getState().selectRepository(routeThreadRef, null)}
+          >
+            <FolderGit2Icon aria-hidden />
+            <span className="max-w-32 truncate">{repositoryFilter}</span>
+            <XIcon aria-hidden />
+          </Button>
+        ) : null}
+        {canPickBaseRef &&
           selectedRunId === null &&
           selectedGitScope === "branch" &&
           selectedGitSource?.baseRef && (
@@ -1081,7 +1112,7 @@ export default function DiffPanel({
                         environmentId: activeThread?.environmentId ?? null,
                         filePath,
                         workspaceRoot: activeCwd,
-                        repositoryRoot: activeRepositoryRoot,
+                        repositoryRoot: diffRepositoryRoot,
                       },
                       event,
                     );

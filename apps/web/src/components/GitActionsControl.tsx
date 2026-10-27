@@ -106,6 +106,7 @@ import { useThreadProjection, useQuietThreadShell } from "~/state/entities";
 import { readEnvironmentScope, useEnvironmentScope } from "~/state/session";
 import { useEnvironmentQuery } from "~/state/query";
 import { reviewEnvironment } from "~/state/review";
+import { useDiffPanelStore } from "~/diffPanelStore";
 import { serverEnvironment } from "~/state/server";
 import { sourceControlEnvironment } from "~/state/sourceControl";
 import { threadEnvironment } from "~/state/threads";
@@ -1098,9 +1099,9 @@ export default function GitActionsControl({
         })
       : null,
   );
-  const nestedChangedFiles = nestedDiffPreview.data?.sources.find(
-    (source) => source.kind === "branch-range",
-  )?.files;
+  const nestedChangedFiles = hasNestedRepositories
+    ? nestedDiffPreview.data?.sources.find((source) => source.kind === "branch-range")?.files
+    : undefined;
   const nestedRepositoryChanges = nestedChangedFiles
     ? summarizeNestedRepositoryChanges(nestedChangedFiles)
     : [];
@@ -1111,6 +1112,12 @@ export default function GitActionsControl({
     }),
     { insertions: 0, deletions: 0 },
   );
+  const openRepositoryChanges = (repository: string | null) => {
+    if (activeThreadRef && hasNestedRepositories) {
+      useDiffPanelStore.getState().selectRepository(activeThreadRef, repository);
+    }
+    onOpenChanges?.();
+  };
   const changesTotals =
     nestedChangesTotals ?? gitStatusForActions?.branchChanges ?? gitStatusForActions?.workingTree;
 
@@ -1845,7 +1852,7 @@ export default function GitActionsControl({
           size="sm"
           part="row"
           disabled={!onOpenChanges}
-          onClick={onOpenChanges}
+          onClick={() => openRepositoryChanges(null)}
         >
           <FileDiffIcon className={THREAD_DETAILS_PANEL_ICON_CLASS} aria-hidden />
           <span className={cn("flex-1 text-left", THREAD_DETAILS_PANEL_LABEL_CLASS)}>Changes</span>
@@ -1869,7 +1876,7 @@ export default function GitActionsControl({
                 size="sm"
                 part="row"
                 disabled={!onOpenChanges}
-                onClick={onOpenChanges}
+                onClick={() => openRepositoryChanges(change.repository)}
               >
                 <FolderGit2Icon
                   className={cn(THREAD_DETAILS_PANEL_ICON_CLASS, "ms-4")}

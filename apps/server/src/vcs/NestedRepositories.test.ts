@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { prefixReviewDiff, splitNestedPath } from "./NestedRepositories.ts";
+import {
+  isQuietRepositoryStatus,
+  prefixReviewDiff,
+  splitNestedPath,
+} from "./NestedRepositories.ts";
 
 describe("prefixReviewDiff", () => {
   it("moves header paths under the repository folder and leaves hunk lines alone", () => {
@@ -49,5 +53,20 @@ describe("splitNestedPath", () => {
     });
     expect(splitNestedPath(["api", "web"], "docs/readme.md")).toBeNull();
     expect(splitNestedPath(["api"], "api")).toBeNull();
+  });
+});
+
+describe("isQuietRepositoryStatus", () => {
+  const header = (upstream: string, ab: string) =>
+    `# branch.oid abc\n# branch.head prod\n# branch.upstream ${upstream}\n# branch.ab ${ab}\n`;
+
+  it("is quiet only when clean and level with the remote default branch", () => {
+    expect(isQuietRepositoryStatus(header("origin/prod", "+0 -0"), "origin/prod")).toBe(true);
+    expect(isQuietRepositoryStatus(header("origin/prod", "+2 -0"), "origin/prod")).toBe(false);
+    expect(isQuietRepositoryStatus(header("origin/feature", "+0 -0"), "origin/prod")).toBe(false);
+    expect(isQuietRepositoryStatus(header("origin/prod", "+0 -0"), null)).toBe(false);
+    expect(
+      isQuietRepositoryStatus(`${header("origin/prod", "+0 -0")}? notes.md\n`, "origin/prod"),
+    ).toBe(false);
   });
 });

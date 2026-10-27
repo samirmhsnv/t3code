@@ -22,6 +22,7 @@ import * as GitVcsDriver from "../vcs/GitVcsDriver.ts";
 import * as VcsDriverRegistry from "../vcs/VcsDriverRegistry.ts";
 import * as KnownWorkspaces from "../workspace/KnownWorkspaces.ts";
 import {
+  isQuietRepositoryStatus,
   listNestedGitRepositories,
   mergeNestedReviewSources,
   splitNestedPath,
@@ -93,6 +94,36 @@ export const make = Effect.gen(function* () {
     });
   });
 
+  // Most checkouts in a folder sit clean on their default branch; two cheap reads skip their diff.
+  const isQuietRepository = (cwd: string) =>
+    Effect.all(
+      [
+        git.execute({
+          operation: "ReviewService.isQuietRepository.status",
+          cwd,
+          args: ["status", "--porcelain=v2", "--branch", "--untracked-files=normal"],
+          allowNonZeroExit: true,
+        }),
+        git.execute({
+          operation: "ReviewService.isQuietRepository.originHead",
+          cwd,
+          args: ["rev-parse", "--abbrev-ref", "origin/HEAD"],
+          allowNonZeroExit: true,
+        }),
+      ],
+      { concurrency: 2 },
+    ).pipe(
+      Effect.map(
+        ([status, originHead]) =>
+          status.exitCode === 0 &&
+          isQuietRepositoryStatus(
+            status.stdout,
+            originHead.exitCode === 0 ? originHead.stdout.trim() : null,
+          ),
+      ),
+      Effect.orElseSucceed(() => false),
+    );
+
   // A folder of separate checkouts: each child repository's diff, with paths under its folder.
   const getNestedDiffPreview = Effect.fn("ReviewService.getNestedDiffPreview")(function* (
     input: ReviewDiffPreviewInput,
@@ -100,7 +131,18 @@ export const make = Effect.gen(function* () {
     const repositories = yield* listNestedGitRepositories(fileSystem, path, input.cwd);
     const file = input.file;
     const target = file ? splitNestedPath(repositories, file.path) : null;
-    const requested = file ? (target ? [target.repository] : []) : repositories;
+    const requested = file
+      ? target
+        ? [target.repository]
+        : []
+      : (yield* Effect.forEach(
+          repositories,
+          (repository) =>
+            isQuietRepository(path.join(input.cwd, repository)).pipe(
+              Effect.map((quiet) => (quiet ? null : repository)),
+            ),
+          { concurrency: "unbounded" },
+        )).filter((repository) => repository !== null);
     const children = yield* Effect.forEach(
       requested,
       (repository) => {
@@ -130,26 +172,24 @@ export const make = Effect.gen(function* () {
       { concurrency: 4 },
     );
     const succeeded = children.filter((child) => child !== null);
-    const sources = yield* Effect.forEach(
-      succeeded.length === 0 ? [] : mergeNestedReviewSources(succeeded),
-      (source) =>
-        crypto
-          .digest(
-            "SHA-256",
-            new TextEncoder().encode(JSON.stringify([source.diff, source.files ?? []])),
-          )
-          .pipe(
-            Effect.map((digest) => ({ ...source, diffHash: Hex.encode(digest) })),
-            Effect.mapError(
-              (cause) =>
-                new VcsRepositoryDetectionError({
-                  operation: "ReviewService.getNestedDiffPreview",
-                  cwd: input.cwd,
-                  detail: "Failed to hash the nested repositories' review diff.",
-                  cause,
-                }),
-            ),
+    const sources = yield* Effect.forEach(mergeNestedReviewSources(succeeded), (source) =>
+      crypto
+        .digest(
+          "SHA-256",
+          new TextEncoder().encode(JSON.stringify([source.diff, source.files ?? []])),
+        )
+        .pipe(
+          Effect.map((digest) => ({ ...source, diffHash: Hex.encode(digest) })),
+          Effect.mapError(
+            (cause) =>
+              new VcsRepositoryDetectionError({
+                operation: "ReviewService.getNestedDiffPreview",
+                cwd: input.cwd,
+                detail: "Failed to hash the nested repositories' review diff.",
+                cause,
+              }),
           ),
+        ),
     );
     return { cwd: input.cwd, generatedAt: yield* DateTime.now, sources };
   });

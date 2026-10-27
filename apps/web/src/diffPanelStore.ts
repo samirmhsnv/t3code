@@ -15,6 +15,9 @@ const DEFAULT_SELECTION: DiffPanelSelection = { kind: "branch", baseRef: null };
 interface DiffPanelStoreState {
   byThreadKey: Record<string, DiffPanelSelection>;
   branchBaseRefByThreadKey: Record<string, string | null>;
+  /** One child repository of a multi-repository folder; null shows them all. */
+  repositoryByThreadKey: Record<string, string | null>;
+  selectRepository: (ref: ScopedThreadRef, repository: string | null) => void;
   selectGitScope: (ref: ScopedThreadRef, scope: "branch" | "unstaged") => void;
   selectBranchBaseRef: (ref: ScopedThreadRef, baseRef: string | null) => void;
   selectTurn: (ref: ScopedThreadRef, turnId: RunId, filePath?: string) => void;
@@ -32,6 +35,14 @@ export const useDiffPanelStore = create<DiffPanelStoreState>()(
     (set) => ({
       byThreadKey: {},
       branchBaseRefByThreadKey: {},
+      repositoryByThreadKey: {},
+      selectRepository: (ref, repository) =>
+        set((state) => ({
+          repositoryByThreadKey: {
+            ...state.repositoryByThreadKey,
+            [scopedThreadKey(ref)]: repository,
+          },
+        })),
       selectGitScope: (ref, scope) =>
         set((state) => {
           const threadKey = scopedThreadKey(ref);
