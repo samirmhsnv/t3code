@@ -103,6 +103,7 @@ import {
 import { useThreadProjection, useQuietThreadShell } from "~/state/entities";
 import { readEnvironmentScope, useEnvironmentScope } from "~/state/session";
 import { useEnvironmentQuery } from "~/state/query";
+import { reviewEnvironment } from "~/state/review";
 import { serverEnvironment } from "~/state/server";
 import { sourceControlEnvironment } from "~/state/sourceControl";
 import { threadEnvironment } from "~/state/threads";
@@ -1086,7 +1087,26 @@ export default function GitActionsControl({
   const hasNestedRepositories = !isRepo && (gitStatus?.nestedRepositories?.length ?? 0) > 0;
   const hasPrimaryRemote = gitStatus?.hasPrimaryRemote ?? false;
   const gitStatusForActions = gitStatus;
-  const changesTotals = gitStatusForActions?.branchChanges ?? gitStatusForActions?.workingTree;
+  // A folder of repositories has no status totals, so sum its combined review diff instead.
+  const nestedDiffPreview = useEnvironmentQuery(
+    hasNestedRepositories && activeEnvironmentId && gitCwd
+      ? reviewEnvironment.diffPreview({
+          environmentId: activeEnvironmentId,
+          input: { cwd: gitCwd },
+        })
+      : null,
+  );
+  const nestedChangesTotals = nestedDiffPreview.data?.sources
+    .find((source) => source.kind === "branch-range")
+    ?.files?.reduce(
+      (total, file) => ({
+        insertions: total.insertions + file.additions,
+        deletions: total.deletions + file.deletions,
+      }),
+      { insertions: 0, deletions: 0 },
+    );
+  const changesTotals =
+    nestedChangesTotals ?? gitStatusForActions?.branchChanges ?? gitStatusForActions?.workingTree;
 
   const allFiles = gitStatusForActions?.workingTree.files ?? [];
   // Changed-file paths are repository-relative, so they must resolve against
@@ -1616,7 +1636,7 @@ export default function GitActionsControl({
   return (
     <>
       {presentation === "menu" ? (
-        !isRepo ? (
+        !isRepo && hasNestedRepositories ? null : !isRepo ? (
           <MenuItem
             density={presentation === "menu" ? "touch" : "default"}
 
@@ -1661,7 +1681,7 @@ export default function GitActionsControl({
             </MenuSub>
           </>
         )
-      ) : !isRepo ? (
+      ) : !isRepo && hasNestedRepositories ? null : !isRepo ? (
         <ThreadDetailsControl
           size="xs"
           variant={isPanel ? "ghost" : "outline"}
@@ -1823,13 +1843,7 @@ export default function GitActionsControl({
         >
           <FileDiffIcon className={THREAD_DETAILS_PANEL_ICON_CLASS} aria-hidden />
           <span className={cn("flex-1 text-left", THREAD_DETAILS_PANEL_LABEL_CLASS)}>Changes</span>
-          {/* A folder of repositories has no single status to total. */}
-          <span
-            className={cn(
-              "flex items-center gap-1.5 font-mono text-xs tabular-nums",
-              hasNestedRepositories && "hidden",
-            )}
-          >
+          <span className="flex items-center gap-1.5 font-mono text-xs tabular-nums">
             <span
               className={
                 changesTotals?.insertions
