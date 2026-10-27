@@ -1083,6 +1083,7 @@ export default function GitActionsControl({
   const changeRequestTerminology = sourceControlPresentation.terminology;
   const SourceControlIcon = sourceControlPresentation.Icon;
   const isRepo = gitStatus?.isRepo ?? true;
+  const hasNestedRepositories = !isRepo && (gitStatus?.nestedRepositories?.length ?? 0) > 0;
   const hasPrimaryRemote = gitStatus?.hasPrimaryRemote ?? false;
   const gitStatusForActions = gitStatus;
   const changesTotals = gitStatusForActions?.branchChanges ?? gitStatusForActions?.workingTree;
@@ -1811,7 +1812,7 @@ export default function GitActionsControl({
         </ActionGroup>
       )}
 
-      {isPanel && isRepo && !quietEmptyDraft ? (
+      {isPanel && (isRepo || hasNestedRepositories) && !quietEmptyDraft ? (
         <ThreadDetailsControl
           type="button"
           variant="ghost"
@@ -1822,7 +1823,13 @@ export default function GitActionsControl({
         >
           <FileDiffIcon className={THREAD_DETAILS_PANEL_ICON_CLASS} aria-hidden />
           <span className={cn("flex-1 text-left", THREAD_DETAILS_PANEL_LABEL_CLASS)}>Changes</span>
-          <span className="flex items-center gap-1.5 font-mono text-xs tabular-nums">
+          {/* A folder of repositories has no single status to total. */}
+          <span
+            className={cn(
+              "flex items-center gap-1.5 font-mono text-xs tabular-nums",
+              hasNestedRepositories && "hidden",
+            )}
+          >
             <span
               className={
                 changesTotals?.insertions

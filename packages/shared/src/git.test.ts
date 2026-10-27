@@ -176,6 +176,27 @@ describe("isTemporaryWorktreeBranch", () => {
 });
 
 describe("applyGitStatusStreamEvent", () => {
+  it("keeps a folder's nested repositories across a remote update", () => {
+    const current = applyGitStatusStreamEvent(null, {
+      _tag: "snapshot",
+      local: {
+        isRepo: false,
+        nestedRepositories: ["api", "web"],
+        hasPrimaryRemote: false,
+        isDefaultRef: false,
+        refName: null,
+        hasWorkingTreeChanges: false,
+        workingTree: { files: [], insertions: 0, deletions: 0 },
+      },
+      remote: null,
+    });
+    const next = applyGitStatusStreamEvent(current, {
+      _tag: "remoteUpdated",
+      remote: { hasUpstream: false, aheadCount: 0, behindCount: 0, pr: null },
+    });
+    expect(next.nestedRepositories).toEqual(["api", "web"]);
+  });
+
   it("treats a remote-only update as a repository when local state is missing", () => {
     const remote: VcsStatusRemoteResult = {
       hasUpstream: true,
