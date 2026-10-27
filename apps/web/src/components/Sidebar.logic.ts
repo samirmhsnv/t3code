@@ -1377,3 +1377,28 @@ export function groupThreadsByProject<T extends { environmentId: string; project
   }
   return [...groups.values()].flat();
 }
+
+export interface SidebarProjectGroup {
+  readonly key: `${string}:${string}`;
+  readonly threadCount: number;
+  readonly collapsed: boolean;
+}
+
+/** Drops collapsed projects' threads, except the open one, and lists every project in order. */
+export function collapseProjectGroups<T extends { environmentId: string; projectId: string }>(
+  groupedThreads: readonly T[],
+  collapsedKeys: ReadonlySet<string>,
+  keepThread: (thread: T) => boolean,
+): { threads: T[]; groups: SidebarProjectGroup[] } {
+  const threads: T[] = [];
+  const groups: { key: `${string}:${string}`; threadCount: number; collapsed: boolean }[] = [];
+  for (const thread of groupedThreads) {
+    const key = `${thread.environmentId}:${thread.projectId}` as const;
+    const collapsed = collapsedKeys.has(key);
+    const last = groups.at(-1);
+    if (last?.key === key) last.threadCount += 1;
+    else groups.push({ key, threadCount: 1, collapsed });
+    if (!collapsed || keepThread(thread)) threads.push(thread);
+  }
+  return { threads, groups };
+}

@@ -8,6 +8,7 @@ import {
   archiveSelectedThreadEntries,
   deleteSelectedThreadEntries,
   getFallbackThreadIdAfterDelete,
+  collapseProjectGroups,
   groupThreadsByProject,
   hasUnseenCompletion,
   resolveSidebarRowThreadId,
@@ -1305,5 +1306,22 @@ describe("groupThreadsByProject", () => {
       thread("b2", "b"),
     ]);
     expect(grouped.map((entry) => entry.id)).toEqual(["a1", "a2", "b1", "b2", "a3"]);
+  });
+});
+
+describe("collapseProjectGroups", () => {
+  it("hides collapsed projects' threads but keeps their headers and the open thread", () => {
+    const thread = (id: string, projectId: string) => ({ id, projectId, environmentId: "local" });
+    const { threads, groups } = collapseProjectGroups(
+      [thread("a1", "a"), thread("a2", "a"), thread("b1", "b"), thread("c1", "c")],
+      new Set(["local:a", "local:c"]),
+      (entry) => entry.id === "a2",
+    );
+    expect(threads.map((entry) => entry.id)).toEqual(["a2", "b1"]);
+    expect(groups).toEqual([
+      { key: "local:a", threadCount: 2, collapsed: true },
+      { key: "local:b", threadCount: 1, collapsed: false },
+      { key: "local:c", threadCount: 1, collapsed: true },
+    ]);
   });
 });

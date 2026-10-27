@@ -951,6 +951,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
     isActive: props.isActive,
   });
 
+  const grouped = props.grouped === true;
   const title =
     isRenaming && canOperateThread ? (
       <input
@@ -970,7 +971,8 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
       <span
         aria-hidden
         className={cn(
-          "min-w-0 flex-1 text-start text-sm transition-opacity motion-reduce:transition-none",
+          "min-w-0 flex-1 text-start transition-opacity motion-reduce:transition-none",
+          grouped ? "text-compact" : "text-sm",
           shouldRecede ? "font-normal" : "font-medium",
           variant === "card"
             ? cn(
@@ -1246,8 +1248,6 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
     runningTerminalIds.length > 0 ||
     prBadge !== null ||
     diff !== null;
-
-  const grouped = props.grouped === true;
 
   return (
     <li

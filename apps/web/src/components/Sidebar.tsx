@@ -62,7 +62,7 @@ import type { OlderSettledScope } from "@t3tools/client-runtime/state/threads";
 import type { EnvironmentProject } from "@t3tools/client-runtime/state/shell";
 import { EnvironmentMachineIcon } from "./EnvironmentMachineIcon";
 
-import { FolderIcon, ListFilterIcon, PlusIcon, SettingsIcon } from "lucide-react";
+import { ChevronRightIcon, FolderIcon, ListFilterIcon, PlusIcon, SettingsIcon } from "lucide-react";
 import {
   useEffect,
   useLayoutEffect,
@@ -181,6 +181,7 @@ import {
   shouldNavigateAfterThreadPark,
   sidebarListItemId,
   sidebarThreadKeyAtY,
+  collapseProjectGroups,
   groupThreadsByProject,
   sortInboxThreadsByReturn,
   sortPinnedThreadsForSidebar,
@@ -295,6 +296,8 @@ const SETTLED_TAIL_PAGE_COUNT = 25;
 const SETTLED_SHELF_EXPANDED_KEY = "t3code:sidebar:settled-expanded";
 const SNOOZED_SHELF_EXPANDED_KEY = "t3code:sidebar:snoozed-expanded";
 const WORKING_SHELF_EXPANDED_KEY = "t3code:sidebar:working-expanded";
+const COLLAPSED_PROJECTS_KEY = "t3code:sidebar:collapsed-projects";
+type ProjectKey = `${EnvironmentId}:${ProjectId}`;
 
 const inboxReturns = createInboxReturnTracker();
 
@@ -440,7 +443,16 @@ function useSidebarThreads(input: {
   if (partitionNextWakeAt !== nextSnoozeWakeAt) setNextSnoozeWakeAt(partitionNextWakeAt);
 
   const { pinnedThreads, workingThreads, snoozedThreads, settledThreads } = partition;
-  const activeThreads = groupThreadsByProject(partition.activeThreads);
+  const [collapsedProjectKeyList, setCollapsedProjectKeyList] = useLocalStorage(
+    COLLAPSED_PROJECTS_KEY,
+    [] as readonly string[],
+    Schema.Array(Schema.String),
+  );
+  const { threads: activeThreads, groups: activeProjectGroups } = collapseProjectGroups(
+    groupThreadsByProject(partition.activeThreads),
+    new Set(collapsedProjectKeyList),
+    (thread) => threadShellKey(thread) === routeRowThreadKey,
+  );
   // Older settled threads load in pages; the shelf lists them only as far as they are loaded.
   const olderSettledShelf = useOlderSettledShelf({
     scopes: olderSettledScopes([...serverConfigs.keys()], scopedProjectKeys),
@@ -521,6 +533,11 @@ function useSidebarThreads(input: {
     visibleSnoozedThreads,
     visibleWorkingThreads,
     activeThreads,
+    activeProjectGroups,
+    toggleProjectCollapsed: (key: string) =>
+      setCollapsedProjectKeyList((keys) =>
+        keys.includes(key) ? keys.filter((entry) => entry !== key) : [...keys, key],
+      ),
     orderedThreadKeys: orderedThreads.map(threadShellKey),
     threadByKey: new Map(orderedThreads.map((thread) => [threadShellKey(thread), thread] as const)),
     settledThreadKeys: new Set(settledThreads.map(threadShellKey)),
@@ -797,22 +814,43 @@ function SidebarProjectHeader(props: {
   project: EnvironmentProject | null;
   label: string;
   machine: EnvironmentMachineKind | null;
+  collapsed: boolean;
+  threadCount: number;
+  onToggle: () => void;
 }) {
   return (
-    <li className="flex list-none items-center gap-1.5 px-2.5 pt-3 pb-0.5 text-xs font-medium text-sidebar-muted-foreground">
-      {props.project ? (
-        <ProjectFavicon project={props.project} className="size-3.5 shrink-0" />
-      ) : (
-        <FolderIcon aria-hidden className="size-3.5 shrink-0" />
-      )}
-      <span className="min-w-0 truncate">{props.label}</span>
-      {props.machine ? (
-        <EnvironmentMachineIcon
+    <li className="list-none pt-2">
+      <button
+        type="button"
+        aria-expanded={!props.collapsed}
+        onClick={props.onToggle}
+        className="group/project-header flex h-6 w-full cursor-pointer items-center gap-1.5 rounded-md px-2.5 text-left text-xs font-medium text-sidebar-muted-foreground hover:bg-sidebar-row-hover hover:text-sidebar-foreground"
+      >
+        {props.project ? (
+          <ProjectFavicon project={props.project} className="size-3.5 shrink-0" />
+        ) : (
+          <FolderIcon aria-hidden className="size-3.5 shrink-0" />
+        )}
+        <span className="min-w-0 truncate">{props.label}</span>
+        {props.machine ? (
+          <EnvironmentMachineIcon
+            aria-hidden
+            kind={props.machine}
+            className="size-3 shrink-0 opacity-60"
+          />
+        ) : null}
+        {props.collapsed ? (
+          <span className="tabular-nums opacity-60">{props.threadCount}</span>
+        ) : null}
+        <ChevronRightIcon
           aria-hidden
-          kind={props.machine}
-          className="size-3 shrink-0 opacity-60"
+          className={cn(
+            "ml-auto size-3.5 shrink-0 opacity-0 transition-transform group-hover/project-header:opacity-60 group-focus-visible/project-header:opacity-60",
+            !props.collapsed && "rotate-90",
+            props.collapsed && "opacity-60",
+          )}
         />
-      ) : null}
+      </button>
     </li>
   );
 }
@@ -1128,6 +1166,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     visibleSnoozedThreads,
     visibleWorkingThreads,
     orderedThreadKeys,
+    activeProjectGroups,
+    toggleProjectCollapsed,
     threadByKey,
     settledThreadKeys,
     snoozedThreadKeys,
@@ -3154,31 +3194,53 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                           onDraftContextMenu={handleDraftContextMenu}
                         />,
                       ];
-                      let previousProjectKey: `${EnvironmentId}:${ProjectId}` | null = null;
+                      let groupCursor = 0;
+                      let shownProjectKey: string | null = null;
+                      const pushProjectHeadersThrough = (stopKey: string | null) => {
+                        while (groupCursor < activeProjectGroups.length) {
+                          const group = activeProjectGroups[groupCursor++]!;
+                          const environmentId = group.key.slice(0, group.key.indexOf(":"));
+                          const machine =
+                            environmentId !== primaryEnvironmentId
+                              ? (environmentMachineById.get(environmentId as EnvironmentId) ??
+                                "server")
+                              : null;
+                          items.push(
+                            <SidebarProjectHeader
+                              key={`project-header:${group.key}`}
+                              project={projectByKey.get(group.key as ProjectKey) ?? null}
+                              label={
+                                projectDisplayNameByKey.get(group.key as ProjectKey) ?? "No project"
+                              }
+                              machine={machine}
+                              collapsed={group.collapsed}
+                              threadCount={group.threadCount}
+                              onToggle={() => toggleProjectCollapsed(group.key)}
+                            />,
+                          );
+                          shownProjectKey = group.key;
+                          if (group.key === stopKey) return;
+                        }
+                      };
                       for (const item of sidebarListItems) {
                         if (item.kind === "thread") {
                           const thread = threadByKey.get(item.key)!;
-                          const projectKey = `${thread.environmentId}:${thread.projectId}` as const;
-                          if (item.section === "active" && projectKey !== previousProjectKey) {
-                            const project = projectByKey.get(projectKey) ?? null;
-                            items.push(
-                              <SidebarProjectHeader
-                                key={`project-header:${projectKey}`}
-                                project={project}
-                                label={projectDisplayNameByKey.get(projectKey) ?? "No project"}
-                                machine={
-                                  thread.environmentId !== primaryEnvironmentId
-                                    ? (environmentMachineById.get(thread.environmentId) ?? "server")
-                                    : null
-                                }
-                              />,
-                            );
+                          if (item.section === "active") {
+                            const projectKey = `${thread.environmentId}:${thread.projectId}`;
+                            if (projectKey !== shownProjectKey) {
+                              pushProjectHeadersThrough(projectKey);
+                            }
                           }
-                          previousProjectKey = item.section === "active" ? projectKey : null;
                           items.push(renderThreadRow(thread, item.section));
                           continue;
                         }
-                        previousProjectKey = null;
+                        if (
+                          item.marker !== "pinned-header" &&
+                          item.marker !== "pinned-divider" &&
+                          item.marker !== "active-placeholder"
+                        ) {
+                          pushProjectHeadersThrough(null);
+                        }
                         switch (item.marker) {
                           case "pinned-header":
                             items.push(
@@ -3296,6 +3358,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                             break;
                         }
                       }
+                      pushProjectHeadersThrough(null);
                       return items;
                     })()}
                     {settledShelfExpanded && hiddenSettledCount > 0 ? (
