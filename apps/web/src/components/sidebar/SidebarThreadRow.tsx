@@ -1268,9 +1268,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
       className={cn(
         "list-none py-0.5 [content-visibility:auto]",
         grouped
-          ? metaLineEmpty
-            ? "[contain-intrinsic-size:auto_36px]"
-            : "[contain-intrinsic-size:auto_56px]"
+          ? "[contain-intrinsic-size:auto_36px]"
           : metaLineEmpty
             ? "[contain-intrinsic-size:auto_58px]"
             : "[contain-intrinsic-size:auto_78px]",
@@ -1307,8 +1305,16 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
               {draftIndicator}
               {grouped ? (
                 <>
+                  <span aria-hidden className="inline-flex shrink-0">
+                    <SidebarProviderStack
+                      thread={thread}
+                      providerEntryByInstanceId={props.providerEntryByInstanceId}
+                    />
+                  </span>
                   {pinIndicator}
                   {title}
+                  {terminalStatusIcon}
+                  {prBadge}
                 </>
               ) : (
                 <>
@@ -1466,7 +1472,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
               )}
               <span
                 aria-hidden
-                className="pointer-events-none inline-flex shrink-0 items-center gap-1"
+                className="pointer-events-none inline-flex shrink-0 items-center gap-1 empty:hidden"
               >
                 {isRemote && !showsScratchMachine && !grouped ? (
                   <span className="inline-flex shrink-0 items-center text-sidebar-muted-foreground/70">
@@ -1477,10 +1483,12 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                     />
                   </span>
                 ) : null}
-                <SidebarProviderStack
-                  thread={thread}
-                  providerEntryByInstanceId={props.providerEntryByInstanceId}
-                />
+                {grouped ? null : (
+                  <SidebarProviderStack
+                    thread={thread}
+                    providerEntryByInstanceId={props.providerEntryByInstanceId}
+                  />
+                )}
               </span>
               {props.sweepAction !== null ? dragDestination : null}
             </div>
@@ -1500,7 +1508,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                 ) : null}
               </div>
             )}
-            {metaLineEmpty ? null : (
+            {metaLineEmpty || grouped ? null : (
               <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-secondary-label text-xs">
                 {thread.branch ? (
                   <>
