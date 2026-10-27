@@ -1268,7 +1268,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
       className={cn(
         "list-none py-0.5 [content-visibility:auto]",
         grouped
-          ? "[contain-intrinsic-size:auto_36px]"
+          ? "ms-2 [contain-intrinsic-size:auto_36px]"
           : metaLineEmpty
             ? "[contain-intrinsic-size:auto_58px]"
             : "[contain-intrinsic-size:auto_78px]",
