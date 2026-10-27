@@ -31,6 +31,7 @@ import {
   CloudDownloadIcon,
   CloudUploadIcon,
   FileDiffIcon,
+  FolderGit2Icon,
   GitBranchPlusIcon,
   GitCommitIcon,
   InfoIcon,
@@ -61,6 +62,7 @@ import {
   resolveThreadBranchMetadataPatch,
   resolveQuickAction,
   resolveThreadBranchUpdate,
+  summarizeNestedRepositoryChanges,
 } from "./GitActionsControl.logic";
 import { WizardPopup, WizardHeader, WizardSteps, WizardPanel, WizardFooter } from "./ui/wizard";
 import { StartTruncatedPath } from "./StartTruncatedPath";
@@ -1096,15 +1098,19 @@ export default function GitActionsControl({
         })
       : null,
   );
-  const nestedChangesTotals = nestedDiffPreview.data?.sources
-    .find((source) => source.kind === "branch-range")
-    ?.files?.reduce(
-      (total, file) => ({
-        insertions: total.insertions + file.additions,
-        deletions: total.deletions + file.deletions,
-      }),
-      { insertions: 0, deletions: 0 },
-    );
+  const nestedChangedFiles = nestedDiffPreview.data?.sources.find(
+    (source) => source.kind === "branch-range",
+  )?.files;
+  const nestedRepositoryChanges = nestedChangedFiles
+    ? summarizeNestedRepositoryChanges(nestedChangedFiles)
+    : [];
+  const nestedChangesTotals = nestedChangedFiles?.reduce(
+    (total, file) => ({
+      insertions: total.insertions + file.additions,
+      deletions: total.deletions + file.deletions,
+    }),
+    { insertions: 0, deletions: 0 },
+  );
   const changesTotals =
     nestedChangesTotals ?? gitStatusForActions?.branchChanges ?? gitStatusForActions?.workingTree;
 
@@ -1843,25 +1849,45 @@ export default function GitActionsControl({
         >
           <FileDiffIcon className={THREAD_DETAILS_PANEL_ICON_CLASS} aria-hidden />
           <span className={cn("flex-1 text-left", THREAD_DETAILS_PANEL_LABEL_CLASS)}>Changes</span>
-          <span className="flex items-center gap-1.5 font-mono text-xs tabular-nums">
-            <span
-              className={
-                changesTotals?.insertions
-                  ? "text-diff-addition-foreground"
-                  : "text-muted-foreground"
-              }
-            >
-              +{formatDiffCount(changesTotals?.insertions ?? 0)}
-            </span>
-            <span
-              className={
-                changesTotals?.deletions ? "text-diff-deletion-foreground" : "text-muted-foreground"
-              }
-            >
-              -{formatDiffCount(changesTotals?.deletions ?? 0)}
-            </span>
-          </span>
+          <DiffCounts
+            insertions={changesTotals?.insertions ?? 0}
+            deletions={changesTotals?.deletions ?? 0}
+          />
         </ThreadDetailsControl>
+      ) : null}
+
+      {isPanel && nestedRepositoryChanges.length > 0 ? (
+        <ul
+          aria-label="Changes by repository"
+          className="m-0 max-h-[13.5rem] list-none overflow-y-auto overscroll-contain p-0"
+        >
+          {nestedRepositoryChanges.map((change) => (
+            <li key={change.repository}>
+              <ThreadDetailsControl
+                type="button"
+                variant="ghost"
+                size="sm"
+                part="row"
+                disabled={!onOpenChanges}
+                onClick={onOpenChanges}
+              >
+                <FolderGit2Icon
+                  className={cn(THREAD_DETAILS_PANEL_ICON_CLASS, "ms-4")}
+                  aria-hidden
+                />
+                <span
+                  className={cn(
+                    "min-w-0 flex-1 truncate text-left",
+                    THREAD_DETAILS_PANEL_LABEL_CLASS,
+                  )}
+                >
+                  {change.repository}
+                </span>
+                <DiffCounts insertions={change.insertions} deletions={change.deletions} />
+              </ThreadDetailsControl>
+            </li>
+          ))}
+        </ul>
       ) : null}
 
       <Dialog
@@ -2094,5 +2120,20 @@ export default function GitActionsControl({
         </DialogPopup>
       </Dialog>
     </>
+  );
+}
+
+function DiffCounts(props: { insertions: number; deletions: number }) {
+  return (
+    <span className="flex items-center gap-1.5 font-mono text-xs tabular-nums">
+      <span
+        className={props.insertions ? "text-diff-addition-foreground" : "text-muted-foreground"}
+      >
+        +{formatDiffCount(props.insertions)}
+      </span>
+      <span className={props.deletions ? "text-diff-deletion-foreground" : "text-muted-foreground"}>
+        -{formatDiffCount(props.deletions)}
+      </span>
+    </span>
   );
 }

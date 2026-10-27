@@ -8,6 +8,7 @@ import {
   resolveDefaultBranchActionDialogCopy,
   resolveLiveThreadBranchUpdate,
   resolveQuickAction,
+  summarizeNestedRepositoryChanges,
 } from "./GitActionsControl.logic";
 
 function status(overrides: Partial<VcsStatusResult> = {}): VcsStatusResult {
@@ -215,5 +216,21 @@ describe("resolveAutoFeatureBranchName", () => {
   it("treats existing ref names as case-insensitive for collision checks", () => {
     const ref = resolveAutoFeatureBranchName(["Feature/Ticket-1"], "feature/ticket-1");
     assert.equal(ref, "feature/ticket-1-2");
+  });
+});
+
+describe("summarizeNestedRepositoryChanges", () => {
+  it("totals each child repository's files, sorted by name", () => {
+    assert.deepStrictEqual(
+      summarizeNestedRepositoryChanges([
+        { path: "web/app.tsx", additions: 3, deletions: 1 },
+        { path: "api/server.ts", additions: 2, deletions: 0 },
+        { path: "web/index.css", additions: 1, deletions: 4 },
+      ]),
+      [
+        { repository: "api", insertions: 2, deletions: 0 },
+        { repository: "web", insertions: 4, deletions: 5 },
+      ],
+    );
   });
 });

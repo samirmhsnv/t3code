@@ -427,3 +427,26 @@ export function resolveLiveThreadBranchUpdate(input: {
 }
 
 export { resolveAutoFeatureBranchName } from "@t3tools/shared/git";
+
+/** Per-repository totals for a folder of repositories, from its folder-relative diff files. */
+export function summarizeNestedRepositoryChanges(
+  files: ReadonlyArray<{
+    readonly path: string;
+    readonly additions: number;
+    readonly deletions: number;
+  }>,
+): Array<{ repository: string; insertions: number; deletions: number }> {
+  const totals = new Map<string, { insertions: number; deletions: number }>();
+  for (const file of files) {
+    const slash = file.path.indexOf("/");
+    if (slash <= 0) continue;
+    const repository = file.path.slice(0, slash);
+    const total = totals.get(repository) ?? { insertions: 0, deletions: 0 };
+    total.insertions += file.additions;
+    total.deletions += file.deletions;
+    totals.set(repository, total);
+  }
+  return [...totals]
+    .map(([repository, total]) => ({ repository, ...total }))
+    .toSorted((left, right) => left.repository.localeCompare(right.repository));
+}
