@@ -34,6 +34,7 @@ export function SplitViewDropZone({
   const openSplit = useSplitViewStore((store) => store.openSplit);
   const primaryKey = primaryThreadRef ? scopedThreadKey(primaryThreadRef) : null;
 
+  // oxlint-disable-next-line t3code/react-effect-budget -- the drop arrives as a DOM CustomEvent, not a React prop
   useEffect(() => {
     const zone = zoneRef.current;
     if (!zone) return;
@@ -78,6 +79,7 @@ export function SplitThreadPane({
   const paneRef = useRef<HTMLElement>(null);
   const threadKey = scopedThreadKey(threadRef);
 
+  // oxlint-disable-next-line t3code/react-effect-budget -- the pane animates open once, after it mounts
   useLayoutEffect(() => {
     if (prefersReducedMotion()) return;
     paneRef.current?.animate(
