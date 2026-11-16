@@ -8,6 +8,7 @@ import type {
   ServerProviderUsageWindow,
   ThreadId,
 } from "@t3tools/contracts";
+import { ProviderDriverKind } from "@t3tools/contracts";
 import { CpuIcon, HardDriveIcon, MemoryStickIcon } from "lucide-react";
 import { type ComponentProps, useContext, useEffect } from "react";
 
@@ -19,6 +20,13 @@ import { useEnvironments, usePrimaryEnvironmentId } from "../state/environments"
 import { useGitHubBillingUsage } from "../state/githubBilling";
 import { primaryServerProvidersAtom, serverEnvironment } from "../state/server";
 import { ProviderInstanceIcon } from "./chat/ProviderInstanceIcon";
+import {
+  formatTokenCount,
+  formatUsageCost,
+  useThirtyDayProviderUsage,
+  usageProviderLabel,
+} from "./StatusBarUsage";
+import type { ProviderTotals } from "@t3tools/shared/usageMerge";
 import { StatusBarConnectionHealth, StatusBarThreadActivity } from "./StatusBarActivity";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 
@@ -55,6 +63,12 @@ export function StatusBar() {
   const limited = providers.filter(
     (provider) => provider.enabled && provider.installed && headlineWindow(provider) !== null,
   );
+  const usageByDriver = useThirtyDayProviderUsage();
+  // Providers that spent in the window but report no limit still get a spot on the row.
+  const limitedDrivers = new Set<string>(limited.map((provider) => provider.driver));
+  const usageOnly = [...usageByDriver.entries()].filter(
+    ([driver, totals]) => !limitedDrivers.has(driver) && totals.costUsd + totals.totalTokens > 0,
+  );
   // This client's own server first, then every other environment it is linked to.
   const environmentIds = [...presentationById.keys()].toSorted(
     (left, right) => Number(right === primaryEnvironmentId) - Number(left === primaryEnvironmentId),
@@ -64,7 +78,15 @@ export function StatusBar() {
     <footer className="flex h-6 shrink-0 items-center gap-2 overflow-hidden border-t border-border/60 bg-background px-3 text-2xs text-muted-foreground tabular-nums">
       <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
         {limited.map((provider) => (
-          <ProviderLimit key={provider.instanceId} provider={provider} now={now} />
+          <ProviderLimit
+            key={provider.instanceId}
+            provider={provider}
+            now={now}
+            usage={usageByDriver.get(provider.driver) ?? null}
+          />
+        ))}
+        {usageOnly.map(([driver, totals]) => (
+          <ProviderUsageOnly key={driver} driver={driver} totals={totals} />
         ))}
         {routeEnvironmentId !== null && routeThreadId !== null ? (
           <GitHubUsage environmentId={routeEnvironmentId} threadId={routeThreadId} />
@@ -92,7 +114,56 @@ export function StatusBar() {
   );
 }
 
-function ProviderLimit({ provider, now }: { provider: ServerProvider; now: number }) {
+function UsageTotals({ usage }: { usage: ProviderTotals }) {
+  return (
+    <>
+      <span className="text-foreground">{formatUsageCost(usage.costUsd)}</span>
+      <span>{formatTokenCount(usage.totalTokens)}</span>
+    </>
+  );
+}
+
+function UsageTooltipRow({ usage }: { usage: ProviderTotals }) {
+  return (
+    <span className="flex items-center gap-2 tabular-nums">
+      <span className="min-w-0 flex-1 truncate text-muted-foreground">Last 30 days</span>
+      <span>{formatUsageCost(usage.costUsd)}</span>
+      <span className="text-muted-foreground">{formatTokenCount(usage.totalTokens)} tokens</span>
+    </span>
+  );
+}
+
+function ProviderUsageOnly({ driver, totals }: { driver: string; totals: ProviderTotals }) {
+  const name = usageProviderLabel(driver);
+  return (
+    <Tooltip>
+      <TooltipTrigger render={<StatusItem />}>
+        <ProviderInstanceIcon
+          driverKind={ProviderDriverKind.make(driver)}
+          displayName={name}
+          size="compact"
+        />
+        <UsageTotals usage={totals} />
+      </TooltipTrigger>
+      <TooltipPopup side="top">
+        <div className="flex min-w-44 flex-col gap-1.5">
+          <span className="font-medium">{name}</span>
+          <UsageTooltipRow usage={totals} />
+        </div>
+      </TooltipPopup>
+    </Tooltip>
+  );
+}
+
+function ProviderLimit({
+  provider,
+  now,
+  usage,
+}: {
+  provider: ServerProvider;
+  now: number;
+  usage: ProviderTotals | null;
+}) {
   const window = headlineWindow(provider)!;
   const used = Math.round(window.usedPercent);
   const resetsIn = formatResetsIn(window.resetsAt, now);
@@ -109,6 +180,7 @@ function ProviderLimit({ provider, now }: { provider: ServerProvider; now: numbe
         <UsageMeter percent={used} />
         <span className={cn("font-medium", usageTextClass(used))}>{used}%</span>
         {resetsIn !== null ? <span>{resetsIn}</span> : null}
+        {usage !== null ? <UsageTotals usage={usage} /> : null}
       </TooltipTrigger>
       <TooltipPopup side="top">
         <div className="flex min-w-44 flex-col gap-1.5">
@@ -127,6 +199,7 @@ function ProviderLimit({ provider, now }: { provider: ServerProvider; now: numbe
               </span>
             );
           })}
+          {usage !== null ? <UsageTooltipRow usage={usage} /> : null}
         </div>
       </TooltipPopup>
     </Tooltip>
