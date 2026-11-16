@@ -3254,6 +3254,17 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                           for (const thread of inPlayThreads) {
                             items.push(renderThreadRow(thread, "active", IN_PLAY_ROW_PARENT));
                           }
+                          // Folders sit at the bottom, apart from the threads in play above.
+                          items.push(
+                            <li
+                              key="project-folders-spacer"
+                              aria-hidden
+                              className={cn(
+                                "mt-auto list-none",
+                                inPlayThreads.length > 0 && "min-h-4",
+                              )}
+                            />,
+                          );
                           for (const folder of projectFolders) {
                             items.push(
                               <SidebarProjectFolderHeader
