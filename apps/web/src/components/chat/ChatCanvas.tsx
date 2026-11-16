@@ -3,9 +3,7 @@ import { useStore } from "zustand";
 import { ChatCanvasContext } from "./ChatCanvasContext";
 import type { ChatCanvasPreview } from "./chatCanvasLayout";
 import { resolveChatCanvasModel, type ChatCanvasStore } from "./canvasStore";
-import { selectThreadPanelOpen, useRightPanelStore } from "../../rightPanelStore";
 import { observeResize } from "../../lib/observeResize";
-import type { ScopedThreadRef } from "@t3tools/contracts";
 
 function panelWidthTransitions(element: HTMLElement) {
   const panels = element
@@ -44,7 +42,7 @@ function measureTransitionWidths(element: HTMLElement, transitions: CSSTransitio
 
 export function ChatCanvas({
   store,
-  threadRef,
+  detailsDock,
   preview,
   composerOverlayElement,
   detailsCardTopInset = 0,
@@ -52,8 +50,8 @@ export function ChatCanvas({
   ...props
 }: Omit<ComponentProps<"div">, "className" | "style" | "ref"> & {
   store: ChatCanvasStore;
-  /** The thread whose details card sits on the canvas; other threads' measurements are stale. */
-  threadRef: ScopedThreadRef | null;
+  /** The docked details column beside the chat column, while it is open. */
+  detailsDock: HTMLElement | null;
   /** The thread's mini player while it renders on this canvas. */
   preview: ChatCanvasPreview | null;
   composerOverlayElement: HTMLElement | null;
@@ -63,7 +61,6 @@ export function ChatCanvas({
   const widthProbeRef = useRef<HTMLDivElement | null>(null);
   const [timelineElement, registerTimeline] = useState<HTMLElement | null>(null);
   const measurements = useStore(store, (state) => state.measurements);
-  const detailsCardMeasurement = useStore(store, (state) => state.detailsCardMeasurement);
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- observes canvas, find bar and timeline resizes and writes the measurements to the canvas store
   useLayoutEffect(() => {
     const element = elementRef.current;
@@ -121,6 +118,7 @@ export function ChatCanvas({
         timelineGutter: timelineElement
           ? (timelineElement.offsetWidth - timelineElement.clientWidth) / 2
           : 0,
+        detailsDockWidth: detailsDock?.offsetWidth ?? 0,
       });
     };
     measure();
@@ -128,33 +126,21 @@ export function ChatCanvas({
     if (findBar) observed.push(findBar);
     if (composerOverlayElement) observed.push(composerOverlayElement);
     if (timelineElement) observed.push(timelineElement);
+    if (detailsDock) observed.push(detailsDock);
     const stopObserving = observeResize(observed, measure);
     return () => {
       disposed = true;
       stopObserving();
     };
-  }, [store, composerOverlayElement, timelineElement, detailsCardTopInset]);
-  const detailsCardInlineOpen = useRightPanelStore((state) =>
-    threadRef === null
-      ? false
-      : selectThreadPanelOpen(state.threadPanelVisibilityByThreadKey, threadRef, "inline"),
-  );
-  const model = resolveChatCanvasModel({
-    measurements,
-    detailsCardMeasurement,
-    threadRef,
-    preview,
-    detailsCardInlineOpen,
-  });
+  }, [store, composerOverlayElement, timelineElement, detailsCardTopInset, detailsDock]);
+  const model = resolveChatCanvasModel({ measurements, preview });
   const context = {
     container: model.container,
     lane: model.lane,
     layout: model.layout,
     previewKey: preview?.key ?? null,
     registerTimeline,
-    measureDetailsCard: store.getState().measureDetailsCard,
     detailsCardTopInset: model.detailsCardTopInset,
-    preferredDetailsCard: model.preferredDetailsCard,
     detailsCardPlacement: model.detailsCardPlacement,
   };
   const { layout } = context;

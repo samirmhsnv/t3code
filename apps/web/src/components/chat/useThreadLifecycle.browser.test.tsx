@@ -140,6 +140,15 @@ function RestoreBranchHarness(props: {
       {lifecycle.childInputNow?.description}
       {lifecycle.childInputNow?.actions}
       {lifecycle.workNow?.actions}
+      {lifecycle.backgroundWork ? (
+        <button
+          type="button"
+          disabled={lifecycle.backgroundWork.stopDisabled}
+          onClick={() => void lifecycle.backgroundWork?.onStop()}
+        >
+          {lifecycle.backgroundWork.stopping ? "Stopping..." : "Stop"}
+        </button>
+      ) : null}
       <button
         type="button"
         disabled={lifecycle.isRestoringThreadBranch}

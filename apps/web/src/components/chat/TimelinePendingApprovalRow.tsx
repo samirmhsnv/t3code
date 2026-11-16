@@ -12,7 +12,7 @@ import { ToolActivityIconView, type WorkEntryIconName } from "./TimelineToolActi
 import { TimelineRowCtx } from "./timelineRowContext";
 import { WorkLogRow } from "./WorkLog";
 
-const APPROVAL_PRESENTATION = {
+export const APPROVAL_PRESENTATION = {
   command: { icon: "terminal", label: "Command approval", detailLabel: "Command" },
   "file-change": { icon: "square-pen", label: "File change approval", detailLabel: "File change" },
   "file-read": { icon: "eye", label: "File read approval", detailLabel: "File to read" },

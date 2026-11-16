@@ -9,8 +9,8 @@ vi.mock(import("./CommandOutputPanel"), () => ({
 }));
 
 import { render } from "../../../test/render";
-import { backgroundWorkNowItem } from "./ThreadActivityBanners";
-import { ThreadNow } from "./ThreadNow";
+import { BackgroundWorkCard } from "./ComposerActivityCards";
+import { backgroundWorkCardItem } from "./ThreadActivityBanners";
 
 it("opens full command details for short labels and keeps pending tasks current", async () => {
   const command = "python3 audit.py -j 6\n> scratch/audit.log 2>&1";
@@ -38,11 +38,8 @@ it("opens full command details for short labels and keeps pending tasks current"
     status: "running" | "completed" = "completed",
     explicitItem = true,
   ) => (
-    <ThreadNow
-      attention={null}
-      syncPhase={null}
-      goal={null}
-      work={backgroundWorkNowItem({
+    <BackgroundWorkCard
+      item={backgroundWorkCardItem({
         environmentId: EnvironmentId.make("test"),
         threadId: ThreadId.make("thread"),
         tasks: [
@@ -72,7 +69,7 @@ it("opens full command details for short labels and keeps pending tasks current"
         stopping: false,
         onStop: async () => undefined,
         onOpenThread: () => undefined,
-      })}
+      })!}
     />
   );
   await using screen = await render(view("Audit"));

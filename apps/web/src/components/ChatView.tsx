@@ -158,6 +158,7 @@ import {
   deriveCanInterruptRunningThread,
   findRevertCheckpoint,
   isLatestRunSettled,
+  type PendingApproval,
 } from "../session-logic";
 import { type LegendListRef } from "@legendapp/list/react";
 import { useWorkspaceMutationRefresh } from "../hooks/useWorkspaceMutationRefresh";
@@ -336,6 +337,7 @@ import { useProactivePanels } from "../hooks/useProactivePanels";
 import { useIncrementalTimelineEntries } from "../hooks/useIncrementalTimelineEntries";
 import { useRightPanelSurfaceClose } from "../hooks/useRightPanelSurfaceClose";
 import { ComposerBannerStack, type ComposerBannerStackItem } from "./chat/ComposerBannerStack";
+import { ComposerActivityCards } from "./chat/ComposerActivityCards";
 import { modelFallbackBannerItem } from "./chat/ComposerUsageLimits";
 import { ComposerSurface } from "./chat/ComposerSurface";
 import { resolveThreadSyncPhase } from "../threadSync";
@@ -409,6 +411,7 @@ const EMPTY_TURN_ITEMS: ThreadStructure["turnItems"] = [];
 const EMPTY_RUNS: ThreadStructure["runs"] = [];
 const EMPTY_AUTO_UPDATE_ENVIRONMENTS: ReadonlyArray<EnvironmentPresentation> = [];
 const EMPTY_COMPOSER_BANNER_ITEMS: ReadonlyArray<ComposerBannerStackItem> = [];
+const EMPTY_PENDING_APPROVALS: ReadonlyArray<PendingApproval> = [];
 
 const EMPTY_PENDING_FILE_SURFACE_IDS: ReadonlySet<string> = new Set();
 
@@ -1969,13 +1972,11 @@ export default function ChatView(props: ChatViewProps) {
   const threadPanelPresentation = useStore(
     chatCanvasStore,
     (state) =>
-      resolveChatCanvasModel({
-        measurements: state.measurements,
-        detailsCardMeasurement: state.detailsCardMeasurement,
-        threadRef: activeThreadRef,
-        preview: canvasPreview,
-        detailsCardInlineOpen: threadPanelInlineOpen,
-      }).detailsCardMode,
+      resolveChatCanvasModel({ measurements: state.measurements, preview: canvasPreview })
+        .detailsCardMode,
+  );
+  const [threadDetailsDockElement, setThreadDetailsDockElement] = useState<HTMLElement | null>(
+    null,
   );
   const threadPanelOpen = useRightPanelStore((state) =>
     selectThreadPanelOpen(
@@ -2427,6 +2428,7 @@ export default function ChatView(props: ChatViewProps) {
     activeBranchMismatchKey,
     attentionNow,
     workNow,
+    backgroundWork,
     childInputNow,
     goalNow,
     handleSwitchCheckoutToThread,
@@ -3305,6 +3307,11 @@ export default function ChatView(props: ChatViewProps) {
       {panelToggleControls}
     </WorkspaceTitlebarControls>
   );
+  const showThreadDetailsDock =
+    !embedded &&
+    threadPanelPresentation === "inline" &&
+    threadPanelInlineOpen &&
+    !rightPanelMaximized;
   const workspaceFileDropHandlers = makeWorkspaceFileDropHandlers({
     setDragActive: setIsWorkspaceFileDragActive,
     addFiles: addDroppedFilesToComposer,
@@ -3357,7 +3364,18 @@ export default function ChatView(props: ChatViewProps) {
                 className="pointer-events-none fixed top-[var(--workspace-controls-top)] right-[var(--workspace-controls-right)] h-[var(--workspace-topbar-height)] w-28 [-webkit-app-region:no-drag]"
               />
             ) : null}
-            {!rightPanelControlsAtRoot && !rightPanelControlsInPanel ? panelLayoutControls : null}
+            {rightPanelControlsAtRoot ||
+            rightPanelControlsInPanel ? null : showThreadDetailsDock ? (
+              // The docked details column owns the window's right edge, so the controls end the chat column.
+              <div
+                className="absolute inset-y-0 right-3 z-50 flex items-center [-webkit-app-region:no-drag]"
+                data-workspace-titlebar-controls
+              >
+                {panelToggleControls}
+              </div>
+            ) : (
+              panelLayoutControls
+            )}
             {inlineRightPanelOwnsTitleBar ? threadPanelHeaderControl : null}
             <ChatHeader
               activeThreadEnvironmentId={activeThread.environmentId}
@@ -3387,7 +3405,7 @@ export default function ChatView(props: ChatViewProps) {
               enabled: threadFindEnabled,
             }}
             store={chatCanvasStore}
-            threadRef={activeThreadRef}
+            detailsDock={showThreadDetailsDock ? threadDetailsDockElement : null}
             preview={canvasPreview}
             detailsCardTopInset={isThreadFindActive ? THREAD_FIND_BAR_RESERVED_HEIGHT : 0}
             composerOverlayElement={isDraftHeroState ? null : composerOverlayElement}
@@ -3422,7 +3440,8 @@ export default function ChatView(props: ChatViewProps) {
             >
               <WorkspaceMutationIdContext value={workspaceMutationId}>
                 <ThreadTimeline
-                  pendingApprovals={pendingApprovals}
+                  // Pending approvals show as cards above the composer, not in the timeline.
+                  pendingApprovals={EMPTY_PENDING_APPROVALS}
                   heldApprovalRequestIds={heldApprovalRequestIds}
                   respondingRequestIds={respondingRequestIds}
                   onRespondToApproval={onRespondToApprovalStable}
@@ -3583,6 +3602,17 @@ export default function ChatView(props: ChatViewProps) {
                     }
                   >
                     <ChildThreadApprovals threadRef={activeThreadRef} />
+                    {isDraftHeroState ? null : (
+                      <ComposerActivityCards
+                        approvals={pendingApprovals.filter(
+                          (approval) => !heldApprovalRequestIds.has(approval.requestId),
+                        )}
+                        respondingRequestIds={respondingRequestIds}
+                        disabled={!canOperateThread}
+                        onRespondToApproval={onRespondToApprovalStable}
+                        backgroundWork={backgroundWork}
+                      />
+                    )}
                     <div className="relative">
                       <ComposerSurface.Shell contextRow={showComposerContextStrip}>
                         <ComposerSurface.Host
@@ -3879,6 +3909,7 @@ export default function ChatView(props: ChatViewProps) {
                 <ThreadDetailsPanel
                   anchor={threadPanelPopoverAnchorRef}
                   handle={threadPanelPopoverHandle}
+                  dock={showThreadDetailsDock ? threadDetailsDockElement : null}
                   forceNewWorktree={multipleModelSelections !== null}
                   environmentId={activeThread.environmentId}
                   threadId={activeThread.id}
@@ -3944,6 +3975,14 @@ export default function ChatView(props: ChatViewProps) {
           />
         )}
       </div>
+
+      {showThreadDetailsDock ? (
+        <div
+          ref={setThreadDetailsDockElement}
+          className="flex w-(--thread-details-panel-width) shrink-0 flex-col border-s border-border bg-background"
+          data-thread-details-dock
+        />
+      ) : null}
 
       {rightPanelPresent && activeThreadRef && !embedded ? (
         <ChatRightPanel

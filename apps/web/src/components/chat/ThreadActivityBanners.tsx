@@ -16,16 +16,14 @@ import { commandDisplayText } from "@t3tools/client-runtime/work-log/command-lab
 import { formatDuration } from "@t3tools/shared/orchestrationTiming";
 import * as DateTime from "effect/DateTime";
 import {
-  CircleDashedIcon,
   CircleStopIcon,
   GitBranchIcon,
   MessageCircleIcon,
   ShieldQuestionIcon,
   TargetIcon,
-  TerminalIcon,
   TriangleAlertIcon,
 } from "lucide-react";
-import { Fragment } from "react";
+import { Fragment, type ReactNode } from "react";
 import { tickTextContent } from "~/lib/tickTextContent";
 import { BackgroundWorkDetails } from "./BackgroundWorkDetails";
 import { Button, InlineButton } from "../ui/button";
@@ -175,8 +173,23 @@ export function runStopNowItem(input: {
   };
 }
 
-/** Background commands and subagents, for the end of the timeline. */
-export function backgroundWorkNowItem(input: {
+/** Background commands and subagents, for the card above the composer. */
+export interface BackgroundWorkCardItem {
+  readonly id: string;
+  readonly waiting: boolean;
+  readonly title: ReactNode;
+  /** The command or the latest progress, shown muted after the title. */
+  readonly detail: ReactNode;
+  readonly startedAtMs: number | null;
+  readonly details: ReactNode;
+  readonly stopDisabled: boolean;
+  readonly stopping: boolean;
+  readonly onStop: () => Promise<void>;
+}
+
+const BACKGROUND_WORK_STATE_PREFIX = /^(?:Waiting|Running)(?: on| ·)? /u;
+
+export function backgroundWorkCardItem(input: {
   readonly environmentId: EnvironmentId;
   readonly threadId: ThreadId;
   readonly tasks: ReadonlyArray<OrchestrationV2PendingBackgroundTask>;
@@ -185,22 +198,25 @@ export function backgroundWorkNowItem(input: {
   readonly stopping: boolean;
   readonly onStop: () => Promise<void>;
   readonly onOpenThread: (threadId: ThreadId) => void;
-}): ThreadNowItem | null {
+}): BackgroundWorkCardItem | null {
   const { onOpenThread } = input;
   const presentation = presentPendingBackgroundWork(input.tasks);
   if (presentation === null) return null;
   const rows = presentation.items.map((task) => {
-    const itemKey =
-      input.tasks.find((pending) => pending.taskId === task.taskId)?.nativeItemId ?? task.taskId;
+    const pending = input.tasks.find((candidate) => candidate.taskId === task.taskId);
+    const itemKey = pending?.nativeItemId ?? task.taskId;
     // Same key derivePendingBackgroundWork gives turn-item tasks; subagent items carry progress.
     const item = input.turnItems.findLast(
       (candidate) => (candidate.nativeItemRef?.nativeId || candidate.id) === itemKey,
     );
     const subagent = item?.type === "subagent" ? item : undefined;
+    const command =
+      pending?.command ?? (item?.type === "command_execution" ? item.input : undefined);
+    const commandText = command === undefined ? null : commandDisplayText(command);
     return {
       task,
       label:
-        item?.type === "command_execution" && commandDisplayText(item.input) === task.label ? (
+        commandText === task.label ? (
           <span className="font-mono in-data-[slot=popover-popup]:whitespace-pre-wrap">
             {task.label}
           </span>
@@ -209,6 +225,7 @@ export function backgroundWorkNowItem(input: {
         ) : (
           task.label
         ),
+      command: commandText !== null && commandText !== task.label ? commandText : null,
       activity: subagent?.progress?.replace(/\s+/gu, " ").trim() || null,
       startedAtMs: item?.startedAt ? DateTime.toEpochMillis(item.startedAt) : null,
       updatedAtMs: subagent ? DateTime.toEpochMillis(subagent.updatedAt) : 0,
@@ -218,21 +235,20 @@ export function backgroundWorkNowItem(input: {
   const newest = rows
     .filter((row) => row.activity)
     .toSorted((left, right) => right.updatedAtMs - left.updatedAtMs)[0];
-  const isCommand = (row: (typeof rows)[number]) => row.task.kind !== "subagent";
-  const startedAtMs = only?.startedAtMs ?? null;
+  const summary = presentation.title.replace(BACKGROUND_WORK_STATE_PREFIX, "");
   return {
     id: `background-work:${input.threadId}`,
-    icon: rows.every(isCommand) ? <TerminalIcon /> : <CircleDashedIcon />,
+    waiting: presentation.waiting,
     title:
-      only && typeof only.label !== "string" && only.task.label !== only.task.kind ? (
-        <>
-          {presentation.waiting ? "Waiting" : "Running"} · {only.label}
-        </>
+      only && only.task.label !== only.task.kind
+        ? only.label
+        : `${summary.charAt(0).toUpperCase()}${summary.slice(1)}`,
+    detail: only ? (
+      only.command !== null ? (
+        <span className="font-mono">{only.command}</span>
       ) : (
-        presentation.title
-      ),
-    description: only ? (
-      only.activity
+        only.activity
+      )
     ) : newest ? (
       <>
         {newest.label}: {newest.activity}
@@ -245,29 +261,19 @@ export function backgroundWorkNowItem(input: {
         </Fragment>
       ))
     ),
-    actions: (
-      <>
-        {startedAtMs === null ? null : (
-          <span
-            ref={tickTextContent(
-              (nowMs) => formatDuration(Math.max(1_000, nowMs - startedAtMs)),
-              true,
-            )}
-            className="tabular-nums"
-          />
-        )}
-        <BackgroundWorkDetails
-          environmentId={input.environmentId}
-          threadId={input.threadId}
-          tasks={input.tasks}
-          turnItems={input.turnItems}
-          onOpenThread={onOpenThread}
-        />
-        <InlineButton disabled={input.stopDisabled} onClick={() => void input.onStop()}>
-          {input.stopping ? "Stopping..." : "Stop"}
-        </InlineButton>
-      </>
+    startedAtMs: only?.startedAtMs ?? null,
+    details: (
+      <BackgroundWorkDetails
+        environmentId={input.environmentId}
+        threadId={input.threadId}
+        tasks={input.tasks}
+        turnItems={input.turnItems}
+        onOpenThread={onOpenThread}
+      />
     ),
+    stopDisabled: input.stopDisabled,
+    stopping: input.stopping,
+    onStop: input.onStop,
   };
 }
 

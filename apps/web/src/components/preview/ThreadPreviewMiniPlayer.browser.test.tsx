@@ -42,7 +42,7 @@ function Harness() {
   );
   const preview = useThreadPreviewCanvasSource(threadRef, miniPlayer);
   return (
-    <ChatCanvas store={store} threadRef={threadRef} preview={preview} composerOverlayElement={null}>
+    <ChatCanvas store={store} detailsDock={null} preview={preview} composerOverlayElement={null}>
       {miniPlayer ? (
         <ThreadPreviewMiniPlayer threadRef={threadRef} miniPlayer={miniPlayer} />
       ) : null}

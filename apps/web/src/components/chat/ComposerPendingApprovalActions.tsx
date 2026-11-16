@@ -11,7 +11,7 @@ import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { composerFloatingLayerProps } from "./composerEventScope";
 
 interface ComposerPendingApprovalActionsProps {
-  presentation?: "composer" | "inline";
+  presentation?: "composer" | "inline" | "card";
   requestId: RuntimeRequestId;
   isResponding: boolean;
   canRespond: boolean;
@@ -30,6 +30,13 @@ const DEFAULT_APPROVAL_OPTIONS = [
   { decision: "accept", label: "Approve" },
 ] satisfies ReadonlyArray<ProviderApprovalOption>;
 
+const INLINE_DECISIONS = ["decline", "accept"] satisfies ReadonlyArray<ProviderApprovalDecision>;
+const CARD_DECISIONS = [
+  "accept",
+  "acceptForSession",
+  "decline",
+] satisfies ReadonlyArray<ProviderApprovalDecision>;
+
 export const ComposerPendingApprovalActions = memo(function ComposerPendingApprovalActions({
   presentation = "composer",
   requestId,
@@ -39,12 +46,17 @@ export const ComposerPendingApprovalActions = memo(function ComposerPendingAppro
   options = DEFAULT_APPROVAL_OPTIONS,
   onRespondToApproval,
 }: ComposerPendingApprovalActionsProps) {
-  const primaryOptions = options.filter(
-    (option) => option.decision === "decline" || option.decision === "accept",
-  );
-  const moreOptions = options.filter(
-    (option) => option.decision !== "decline" && option.decision !== "accept",
-  );
+  const primaryDecisions: ReadonlyArray<ProviderApprovalDecision> =
+    presentation === "card" ? CARD_DECISIONS : INLINE_DECISIONS;
+  const primaryOptions = options.filter((option) => primaryDecisions.includes(option.decision));
+  // The card leads with Approve, whatever order the provider lists its options in.
+  if (presentation === "card") {
+    primaryOptions.sort(
+      (left, right) =>
+        primaryDecisions.indexOf(left.decision) - primaryDecisions.indexOf(right.decision),
+    );
+  }
+  const moreOptions = options.filter((option) => !primaryDecisions.includes(option.decision));
 
   return (
     <>

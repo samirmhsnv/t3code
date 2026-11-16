@@ -24,7 +24,8 @@ import { useClientSettings } from "../../hooks/useSettings";
 import { useProject, useServerConfigs } from "../../state/entities";
 import { ThreadDetailsThreadPrRows } from "./ThreadDetailsPrRows";
 import { cn } from "../../lib/utils";
-import { SlidersHorizontalIcon } from "lucide-react";
+import { EllipsisIcon, SlidersHorizontalIcon } from "lucide-react";
+import { Button } from "../ui/button";
 import { ThreadDetailsControl } from "./ThreadDetailsControl";
 import {
   THREAD_DETAILS_PANEL_ICON_CLASS,
@@ -36,7 +37,7 @@ const GitActionsControl = memo(BaseGitActionsControl);
 
 interface ThreadDetailsPanelProps extends Pick<
   ComponentProps<typeof ThreadDetailsCard>,
-  "anchor" | "handle"
+  "anchor" | "handle" | "dock"
 > {
   forceNewWorktree?: boolean;
   environmentId: EnvironmentId;
@@ -107,6 +108,20 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
       threadRef={{ environmentId: props.environmentId, threadId: props.threadId }}
       anchor={props.anchor}
       handle={props.handle}
+      dock={props.dock}
+      headerActions={
+        <Button
+          size="icon-xs"
+          variant="ghost"
+          aria-label="Choose what to show"
+          onClick={(event) => {
+            const rect = event.currentTarget.getBoundingClientRect();
+            setMenuPosition({ x: rect.left, y: rect.bottom });
+          }}
+        >
+          <EllipsisIcon />
+        </Button>
+      }
       contentKey={THREAD_DETAILS_ITEMS.filter((item) => visible[item.id])
         .map((item) => item.id)
         .join(",")}

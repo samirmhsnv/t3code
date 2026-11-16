@@ -66,7 +66,7 @@ import { readEnvironmentScope } from "../../state/session";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { useOrchestrationCommand } from "../../state/use-orchestration-command";
 import {
-  backgroundWorkNowItem,
+  backgroundWorkCardItem,
   childInputNowItem,
   goalNowItem,
   runStopNowItem,
@@ -108,8 +108,8 @@ interface ThreadLifecycleInput {
   readonly isWorking: boolean;
   /** Also true while the server prepares, starts, or queues a run this client did not send. */
   readonly runIsLive: boolean;
-  readonly pendingBackgroundTasks: Parameters<typeof backgroundWorkNowItem>[0]["tasks"];
-  readonly turnItems: Parameters<typeof backgroundWorkNowItem>[0]["turnItems"];
+  readonly pendingBackgroundTasks: Parameters<typeof backgroundWorkCardItem>[0]["tasks"];
+  readonly turnItems: Parameters<typeof backgroundWorkCardItem>[0]["turnItems"];
   readonly activePendingApproval: PendingThreadRequests["activePendingApproval"];
   readonly activePendingUserInput: PendingThreadRequests["activePendingUserInput"];
   readonly localCheckoutBranchMismatch: {
@@ -600,8 +600,8 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
           onForceStop: () => void forceStop.forceStopThread(activeThread.id, runStop.runId),
         })
       : null;
-  const backgroundWorkNow = activeThread
-    ? backgroundWorkNowItem({
+  const backgroundWork = activeThread
+    ? backgroundWorkCardItem({
         environmentId,
         threadId: activeThread.id,
         tasks: activeBackgroundTasks,
@@ -708,7 +708,8 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
     activeBranchMismatchKey,
     // A Stop that went unanswered needs the user; one in progress is the thread's work.
     attentionNow: runStop?.state === "unresponsive" ? runStopNow : childInputNow,
-    workNow: runStop?.state === "stopping" ? runStopNow : backgroundWorkNow,
+    workNow: runStop?.state === "stopping" ? runStopNow : null,
+    backgroundWork: runStop?.state === "stopping" ? null : backgroundWork,
     childInputNow,
     goalNow,
     handleSwitchCheckoutToThread,

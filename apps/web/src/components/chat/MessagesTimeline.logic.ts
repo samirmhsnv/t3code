@@ -77,6 +77,7 @@ import {
   formatSearchToolLabel,
 } from "@t3tools/shared/toolActivity";
 import { isWindowsAbsolutePath } from "@t3tools/shared/path";
+import { sameWorkSummary, summarizeWork, type WorkSummary } from "./TimelineWorkGroupRows.logic";
 
 export function timelineEntryRunId(entry: TimelineEntry): RunId | null {
   if (entry.kind === "message") {
@@ -573,6 +574,7 @@ type MessagesTimelineRowContent =
       createdAt: string;
       runId: RunId;
       label: string;
+      summary: WorkSummary;
       expanded: boolean;
     }
   | {
@@ -1913,6 +1915,12 @@ export function deriveMessagesTimelineRows(input: {
         createdAt: turnFold.createdAt,
         runId: turnFold.runId,
         label: turnFold.label,
+        summary: summarizeWork(
+          [...turnFold.entryIds].flatMap((entryId) => {
+            const entry = timelineEntryById.get(entryId);
+            return entry?.kind === "work" ? [entry.entry] : [];
+          }),
+        ),
         expanded: input.expandedRunIds?.has(turnFold.runId) ?? false,
       });
     }
@@ -2737,6 +2745,8 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
         a.createdAt === bf.createdAt &&
         a.label === bf.label &&
         a.expanded === bf.expanded &&
+        (a.kind !== "turn-fold" ||
+          (bf.kind === "turn-fold" && sameWorkSummary(a.summary, bf.summary))) &&
         anchors.length === nextAnchors.length &&
         anchors.every((id, index) => id === nextAnchors[index])
       );

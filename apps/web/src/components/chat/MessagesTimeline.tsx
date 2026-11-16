@@ -51,6 +51,7 @@ import {
   type MaintainScrollAtEndOptions,
 } from "@legendapp/list/react";
 import { type PendingApproval, type TimelineEntry } from "../../session-logic";
+import { TurnFoldLabel, WorkSummaryChips } from "./TurnFoldSummary";
 import type { CodexArtifactTemplate } from "@t3tools/shared/codexArtifactTemplates";
 import { type ChatFileAttachment, type TurnDiffSummary } from "../../types";
 import {
@@ -1618,22 +1619,24 @@ const TimelineRowContent = memo(function TimelineRowContent({ row }: { row: Time
       className={cn(
         isWorkLogRow || isSubagentGroup
           ? undefined
-          : row.kind === "turn-fold" || row.kind === "working"
-            ? "pb-1.5"
-            : row.kind === "message" && row.groupedWithNext
-              ? "pb-1"
-              : (row.kind === "message" &&
-                    row.message.role === "assistant" &&
-                    !row.showAssistantMeta) ||
-                  row.kind === "worktree-setup" ||
-                  row.kind === "event" ||
-                  row.kind === "attempt-fold" ||
-                  row.kind === "html-render" ||
-                  row.kind === "sent-message" ||
-                  row.kind === "mcp-app" ||
-                  row.kind === "viewed-images"
-                ? "pb-2"
-                : "pb-4",
+          : row.kind === "turn-fold"
+            ? "pb-3"
+            : row.kind === "working"
+              ? "pb-1.5"
+              : row.kind === "message" && row.groupedWithNext
+                ? "pb-1"
+                : (row.kind === "message" &&
+                      row.message.role === "assistant" &&
+                      !row.showAssistantMeta) ||
+                    row.kind === "worktree-setup" ||
+                    row.kind === "event" ||
+                    row.kind === "attempt-fold" ||
+                    row.kind === "html-render" ||
+                    row.kind === "sent-message" ||
+                    row.kind === "mcp-app" ||
+                    row.kind === "viewed-images"
+                  ? "pb-2"
+                  : "pb-4",
         (row.kind === "message" && row.message.role === "assistant") ||
           row.kind === "assistant-meta"
           ? "group/assistant"
@@ -1826,31 +1829,28 @@ function TurnFoldTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "turn-
   );
 
   return (
-    <div className="group/timeline-row border-b border-border/60 pb-2 pe-0.5 pt-1">
-      <div className="relative flex items-center gap-1">
+    <div className="group/timeline-row overflow-hidden rounded-xl border border-border bg-card">
+      <div className="relative flex h-8.5 items-center gap-2 pe-3">
         <button
           type="button"
           aria-expanded={row.expanded}
           data-scroll-anchor-ignore
           onClick={toggle}
           aria-busy={loading}
-          className="flex cursor-pointer select-none items-center gap-1 rounded-md px-1 text-sm leading-relaxed text-muted-foreground tabular-nums transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/70"
+          className="flex h-full min-w-0 flex-1 cursor-pointer select-none items-center gap-2 ps-3 text-sm text-muted-foreground tabular-nums transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/70"
         >
-          <span>
-            {row.label}
+          {row.expanded ? (
+            <ChevronDownIcon className="size-3.5 shrink-0" />
+          ) : (
+            <ChevronRightIcon className="size-3.5 shrink-0" />
+          )}
+          <span className="truncate">
+            <TurnFoldLabel label={row.label} />
             {error ? ` · ${error}` : ""}
           </span>
-          {row.expanded ? (
-            <ChevronDownIcon className="size-3.5" />
-          ) : (
-            <ChevronRightIcon className="size-3.5" />
-          )}
         </button>
-        <TimelineRowTimestamp
-          createdAt={row.createdAt}
-          timestampFormat={ctx.timestampFormat}
-          className="ms-auto"
-        />
+        <WorkSummaryChips summary={row.summary} />
+        <TimelineRowTimestamp createdAt={row.createdAt} timestampFormat={ctx.timestampFormat} />
       </div>
       {loading ? <WorkHistorySkeleton /> : null}
     </div>
