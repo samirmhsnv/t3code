@@ -48,6 +48,7 @@ import {
   CircleDotDashedIcon,
   ClockIcon,
   GitBranchIcon,
+  LoaderCircleIcon,
   MessageCircleQuestionIcon,
   PinIcon,
   PinOffIcon,
@@ -88,6 +89,7 @@ import {
   hasUnseenCompletion,
   resolveSidebarRowAccessibility,
   type SidebarDropVerb,
+  type SidebarThreadStatus,
   resolveSidebarRowStatus,
   resolveThreadLastVisitedAt,
   shouldRecedeSidebarThread,
@@ -545,6 +547,23 @@ const TOP_STATUS_ICONS = {
 function TopStatusIcon(props: { icon: keyof typeof TOP_STATUS_ICONS; className: string }) {
   const Icon = TOP_STATUS_ICONS[props.icon];
   return <Icon aria-hidden className={cn("shrink-0", props.className)} />;
+}
+
+// Folder rows show status as a glyph: working, needs you, failed, unread, or read.
+function FolderStatusGlyph(props: { status: SidebarThreadStatus; isUnread: boolean }) {
+  const { status, isUnread } = props;
+  if (status === "preparing" || status === "working" || status === "waiting") {
+    return <LoaderCircleIcon aria-label="Working" className="size-3.5 text-info-foreground" />;
+  }
+  const dotClassName =
+    status === "approval" || status === "input" || status === "request"
+      ? "bg-warning"
+      : status === "failed" || status === "limited"
+        ? "bg-error"
+        : isUnread
+          ? "bg-success"
+          : "bg-muted-foreground/40";
+  return <span aria-hidden className={cn("size-1.5 rounded-full", dotClassName)} />;
 }
 
 type SidebarThreadRowProps = {
@@ -1257,6 +1276,10 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                     : "flex h-9 items-center gap-2.5 px-2.5",
                   // Lines titles up with the folder name, past its chevron and icon.
                   inFolder && "ps-9",
+                  variant === "folder" && "gap-2 ps-2.5",
+                  variant === "folder" &&
+                    variantAction === "unsettle" &&
+                    "opacity-50 grayscale hover:opacity-100 hover:grayscale-0",
                 )}
                 onClick={handleClick}
                 onDoubleClick={handleDoubleClick}
@@ -1280,6 +1303,11 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                   ) : null}
                 </span>
               )}
+              {variant === "folder" ? (
+                <span className="inline-flex size-4 shrink-0 items-center justify-center">
+                  <FolderStatusGlyph status={status} isUnread={isUnread} />
+                </span>
+              ) : null}
               {draftIndicator}
               {title}
               {multiline ? titleLineIcons : null}
@@ -1329,6 +1357,13 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                         />
                         <TooltipPopup side="top">Dismiss Woke notification</TooltipPopup>
                       </Tooltip>
+                    ) : variant === "folder" ? (
+                      <span aria-hidden className="inline-flex items-center">
+                        <SidebarProviderStack
+                          thread={thread}
+                          providerEntryByInstanceId={props.providerEntryByInstanceId}
+                        />
+                      </span>
                     ) : inFolder && topStatus ? (
                       // Folder rows have no status line, so the status takes the time slot.
                       <span
