@@ -1,5 +1,7 @@
 import * as Schema from "effect/Schema";
 
+import { ProjectId } from "./baseSchemas.ts";
+
 export const GitHubBillingUsageInput = Schema.Struct({
   owner: Schema.String.check(Schema.isPattern(/^[A-Za-z0-9][A-Za-z0-9-]{0,38}$/)),
 });
@@ -44,3 +46,40 @@ export const GitHubBillingUsageResult = Schema.Union([
   Schema.TaggedStruct("Unavailable", { owner: Schema.String, reason: Schema.String }),
 ]);
 export type GitHubBillingUsageResult = typeof GitHubBillingUsageResult.Type;
+
+export const GitHubOwnersInput = Schema.Struct({ projectId: ProjectId });
+export type GitHubOwnersInput = typeof GitHubOwnersInput.Type;
+
+/** GitHub owners of the project's repository and the repositories in its folder, most used first. */
+export const GitHubOwnersResult = Schema.Struct({
+  owners: Schema.Array(Schema.Struct({ owner: Schema.String, repoCount: Schema.Number })),
+});
+export type GitHubOwnersResult = typeof GitHubOwnersResult.Type;
+
+export const NestedRepoChangesInput = Schema.Struct({ projectId: ProjectId });
+export type NestedRepoChangesInput = typeof NestedRepoChangesInput.Type;
+
+export const NestedRepoChangedFile = Schema.Struct({
+  path: Schema.String,
+  kind: Schema.Literals(["added", "modified", "deleted", "renamed"]),
+  insertions: Schema.Number,
+  deletions: Schema.Number,
+});
+export type NestedRepoChangedFile = typeof NestedRepoChangedFile.Type;
+
+/** Uncommitted changes against HEAD in each repository under a folder project, changed ones only. */
+export const NestedRepoChangesResult = Schema.Struct({
+  repos: Schema.Array(
+    Schema.Struct({
+      /** Relative to the project root; empty for the root itself. */
+      path: Schema.String,
+      branch: Schema.NullOr(Schema.String),
+      fileCount: Schema.Number,
+      insertions: Schema.Number,
+      deletions: Schema.Number,
+      /** At most a few hundred files; `fileCount` counts them all. */
+      files: Schema.Array(NestedRepoChangedFile),
+    }),
+  ),
+});
+export type NestedRepoChangesResult = typeof NestedRepoChangesResult.Type;

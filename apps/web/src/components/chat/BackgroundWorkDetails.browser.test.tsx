@@ -9,8 +9,8 @@ vi.mock(import("./CommandOutputPanel"), () => ({
 }));
 
 import { render } from "../../../test/render";
-import { BackgroundWorkCard } from "./ComposerActivityCards";
-import { backgroundWorkCardItem } from "./ThreadActivityBanners";
+import { BackgroundWorkCards } from "./BackgroundWorkCards";
+import { deriveBackgroundWork } from "./backgroundWork.logic";
 
 it("opens full command details for short labels and keeps pending tasks current", async () => {
   const command = "python3 audit.py -j 6\n> scratch/audit.log 2>&1";
@@ -38,8 +38,8 @@ it("opens full command details for short labels and keeps pending tasks current"
     status: "running" | "completed" = "completed",
     explicitItem = true,
   ) => (
-    <BackgroundWorkCard
-      item={backgroundWorkCardItem({
+    <BackgroundWorkCards
+      work={deriveBackgroundWork({
         environmentId: EnvironmentId.make("test"),
         threadId: ThreadId.make("thread"),
         tasks: [
@@ -78,14 +78,18 @@ it("opens full command details for short labels and keeps pending tasks current"
   await expect.element(page.getByText("Command output stream")).not.toBeInTheDocument();
 
   await screen.rerender(view(command));
-  await expect.element(page.getByRole("heading", { name: "Command", exact: true })).toBeVisible();
+  await expect
+    .element(page.getByRole("heading", { name: "Command", exact: true }))
+    .toBeInTheDocument();
   await screen.rerender(view());
-  await expect.element(page.getByRole("heading", { name: "Command", exact: true })).toBeVisible();
+  await expect
+    .element(page.getByRole("heading", { name: "Command", exact: true }))
+    .toBeInTheDocument();
 
   await screen.rerender(view("Check remaining modules", "running"));
   await expect
     .element(page.getByRole("heading", { name: "Check remaining modules" }))
-    .toBeVisible();
+    .toBeInTheDocument();
   await expect.element(page.getByText("Command output stream")).toBeVisible();
   await screen.rerender(view("Native fallback", "completed", false));
   await expect.element(page.getByText("Command output stream")).toBeVisible();

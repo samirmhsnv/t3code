@@ -18,6 +18,7 @@ import { getSourceControlPresentationForKind } from "../sourceControlPresentatio
 import { useProject, useQuietThreadShell } from "../state/entities";
 import { useEnvironments, usePrimaryEnvironmentId } from "../state/environments";
 import { useGitHubBillingUsage } from "../state/githubBilling";
+import { useProjectGitHubOwners } from "../state/projectRepositories";
 import { primaryServerProvidersAtom, serverEnvironment } from "../state/server";
 import { ProviderInstanceIcon } from "./chat/ProviderInstanceIcon";
 import { githubOwnerFromPullRequests } from "./statusBarGitHub.logic";
@@ -228,7 +229,7 @@ function ownerOfCanonicalKey(canonicalKey: string | undefined): string | null {
   return canonicalKey?.split("/")[1] ?? null;
 }
 
-/** Billing for the GitHub owner of the open thread's project, read by that environment's `gh`. */
+/** Billing for each GitHub owner of the open thread's project, read by this client's `gh`. */
 function GitHubUsage({
   environmentId,
   threadId,
@@ -241,24 +242,61 @@ function GitHubUsage({
     thread === null ? null : scopeProjectRef(environmentId, thread.projectId),
   );
   const identity = project?.repositoryIdentity;
+  const identityOwner =
+    identity?.provider === "github"
+      ? (ownerOfCanonicalKey(identity.origin?.canonicalKey) ?? identity.owner ?? null)
+      : null;
+  // A folder of repos has no repository of its own; the server hosting it lists their owners.
+  // Older servers lack the request, so its failure falls through to the PR-based guess.
+  const folderOwners = useProjectGitHubOwners(
+    environmentId,
+    project === null || identityOwner !== null ? null : project.id,
+  ).data?.owners;
   const projectPullRequests = useAtomValue(threadLinkedPullRequestEntriesAtom).filter(
     (entry) => entry.environmentId === environmentId && entry.projectId === thread?.projectId,
   );
-  const owner =
-    identity?.provider === "github"
-      ? (ownerOfCanonicalKey(identity.origin?.canonicalKey) ?? identity.owner ?? null)
-      : // A folder of repos has no repository of its own; its PRs say which owner it bills to.
-        githubOwnerFromPullRequests(thread?.pullRequests ?? [], projectPullRequests);
+  const pullRequestOwner =
+    identityOwner === null && (folderOwners === undefined || folderOwners.length === 0)
+      ? githubOwnerFromPullRequests(thread?.pullRequests ?? [], projectPullRequests)
+      : null;
+  const owners =
+    identityOwner !== null
+      ? [identityOwner]
+      : folderOwners !== undefined && folderOwners.length > 0
+        ? folderOwners.map((entry) => entry.owner)
+        : pullRequestOwner !== null
+          ? [pullRequestOwner]
+          : [];
   // Billing belongs to the owner, not the machine: ask this client's own server, whose `gh`
   // is signed in here, so threads on older remote servers still show usage.
   const billingEnvironmentId = usePrimaryEnvironmentId() ?? environmentId;
-  const { data } = useGitHubBillingUsage(billingEnvironmentId, owner);
-  if (owner === null || data === null) return null;
+  return owners.map((owner) => (
+    <GitHubOwnerUsage
+      key={owner}
+      environmentId={billingEnvironmentId}
+      owner={owner}
+      showOwner={owners.length > 1}
+    />
+  ));
+}
+
+function GitHubOwnerUsage({
+  environmentId,
+  owner,
+  showOwner,
+}: {
+  environmentId: EnvironmentId;
+  owner: string;
+  showOwner: boolean;
+}) {
+  const { data } = useGitHubBillingUsage(environmentId, owner);
+  if (data === null) return null;
   if (data._tag !== "Ok") {
     return (
       <Tooltip>
         <TooltipTrigger render={<StatusItem />}>
           <GitHubMark aria-label="GitHub" className="size-3 opacity-50" />
+          {showOwner ? <span>{owner}</span> : null}
         </TooltipTrigger>
         <TooltipPopup side="top">{data.reason}</TooltipPopup>
       </Tooltip>
@@ -269,6 +307,7 @@ function GitHubUsage({
     <Tooltip>
       <TooltipTrigger render={<StatusItem />}>
         <GitHubMark aria-label="GitHub" className="size-3" />
+        {showOwner ? <span>{owner}</span> : null}
         {headline._tag === "Budget" ? (
           <BudgetHeadline spent={headline.spent} budget={headline.budget} />
         ) : (

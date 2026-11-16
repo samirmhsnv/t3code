@@ -8,6 +8,7 @@ import { useIssueList } from "../state/issues";
 import { openThreadLinkedPullRequestCountAtom } from "../state/pullRequests";
 import { AttentionStrip } from "./attention/AttentionStrip";
 import { readPullRequestListPreferences } from "./pullRequest/pullRequestListPreferences";
+import { Badge } from "./ui/badge";
 import { useNavigateToMainApp } from "./sidebar/mainAppLocation";
 
 type ContentTab = "chat" | "issues" | "pull-requests";
@@ -85,7 +86,7 @@ function ContentTabButton(props: {
     >
       {props.label}
       {props.count ? (
-        <span className="text-xs tabular-nums text-muted-foreground">{props.count}</span>
+        <Badge variant={props.active ? "info" : "secondary"}>{props.count}</Badge>
       ) : null}
     </button>
   );

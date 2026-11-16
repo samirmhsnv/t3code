@@ -1,4 +1,5 @@
-import type { IssuePerson, IssuePriority, IssueStatus } from "@t3tools/contracts";
+import type { IssuePerson, IssuePriority, IssueSource, IssueStatus } from "@t3tools/contracts";
+import { BellIcon } from "lucide-react";
 import { useState } from "react";
 
 import { cn } from "~/lib/utils";
@@ -169,5 +170,25 @@ export function IssueAvatar({
     >
       {initials(person.name)}
     </span>
+  );
+}
+
+const LINEAR_MARK =
+  "M1.23 61.52c-.22-.95.9-1.55 1.6-.86l36.5 36.52c.7.69.1 1.82-.86 1.6A50.07 50.07 0 0 1 1.23 61.52ZM0 46.89a1 1 0 0 0 .29.76L52.35 99.7a1 1 0 0 0 .76.3c2.37-.15 4.7-.46 6.96-.93.77-.16 1.03-1.1.48-1.65L2.58 39.45c-.55-.55-1.5-.29-1.65.48-.47 2.27-.78 4.59-.93 6.96Zm4.21-17.18a1 1 0 0 0 .21 1.1l64.78 64.77a1 1 0 0 0 1.1.21c1.78-.8 3.51-1.7 5.18-2.68.55-.33.64-1.09.18-1.54L8.44 24.34c-.46-.46-1.22-.37-1.54.18-1 1.67-1.9 3.4-2.69 5.19Zm8.45-11.64a.99.99 0 0 1-.04-1.35A49.86 49.86 0 0 1 49.95 0C77.6 0 100 22.4 100 50.05c0 14.84-6.46 28.17-16.72 37.34a.99.99 0 0 1-1.35-.05L12.66 18.07Z";
+
+/** The tracker an issue lives in: Linear's mark, or a bell for Deckbell. */
+export function IssueSourceIcon({
+  source,
+  className,
+}: {
+  readonly source: IssueSource;
+  readonly className?: string;
+}) {
+  const classes = cn("size-3.5 shrink-0 text-muted-foreground", className);
+  if (source === "deckbell") return <BellIcon aria-hidden className={classes} />;
+  return (
+    <svg viewBox="0 0 100 100" aria-hidden className={classes}>
+      <path d={LINEAR_MARK} fill="currentColor" />
+    </svg>
   );
 }

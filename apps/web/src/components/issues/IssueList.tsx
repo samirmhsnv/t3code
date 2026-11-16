@@ -41,7 +41,7 @@ function IssueRow({
         <span className="sr-only">{issue.status.name}</span>
         <span className="min-w-0 flex-1 truncate text-foreground">{issue.title}</span>
         {labels.length > 0 ? (
-          <span className="hidden min-w-0 shrink items-center gap-1 md:flex">
+          <span className="hidden min-w-0 shrink items-center gap-1 @xl:flex">
             {labels.map((label) => (
               <Badge
                 key={label.id}
@@ -61,7 +61,7 @@ function IssueRow({
           </span>
         ) : null}
         {issue.container ? (
-          <span className="hidden w-12 shrink-0 truncate text-right font-mono text-xs text-muted-foreground sm:inline">
+          <span className="hidden w-12 shrink-0 truncate text-right font-mono text-xs text-muted-foreground @md:inline">
             {issue.container.key}
           </span>
         ) : null}

@@ -1,18 +1,23 @@
+import { scopeProjectRef } from "@t3tools/client-runtime/environment";
 import { resolvePullRequestDetailChecks } from "@t3tools/client-runtime/pull-request-checks";
 import { selectEnvironmentQueryData } from "@t3tools/client-runtime/state/runtime";
 import { isThreadWorking } from "@t3tools/client-runtime/state/thread-inbox";
 import { resolveThreadCurrentPullRequestLink } from "@t3tools/client-runtime/thread-pull-requests";
 import type { PullRequestReviewDecision, ScopedThreadRef } from "@t3tools/contracts";
-import { FolderIcon } from "lucide-react";
-import type { ReactNode } from "react";
+import { ChevronRightIcon, ExternalLinkIcon, FolderIcon } from "lucide-react";
+import { useState, type MouseEvent, type ReactNode } from "react";
 
+import { useOpenPrLink } from "~/lib/openPullRequestLink";
 import { cn } from "~/lib/utils";
+import { readLocalApi } from "~/localApi";
 import {
+  useProject,
   useQuietThreadProjection,
   useQuietThreadShell,
   useServerConfigs,
   useThreadCheckpointSummaries,
 } from "~/state/entities";
+import { useNestedRepoChanges } from "~/state/projectRepositories";
 import { pullRequestEnvironment } from "~/state/pullRequests";
 import { useEnvironmentQueryIsNewer, useEnvironmentQuerySelector } from "~/state/query";
 
@@ -26,6 +31,7 @@ import {
   PullRequestReviewDecisionGlyph,
 } from "../pullRequest/pullRequestPresentation";
 import { Toggle, ToggleGroup } from "../ui/toggle-group";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { ThreadDetailsSection } from "./ThreadDetailsSection";
 import {
   changeBarQuarters,
@@ -148,65 +154,175 @@ export function ThreadDetailsPullRequestSection({ threadRef }: { threadRef: Scop
   const checksData = useEnvironmentQuerySelector(checksAtom, selectEnvironmentQueryData);
   const checksAreNewer = useEnvironmentQueryIsNewer(checksAtom, detailAtom);
   const detail = resolvePullRequestDetailChecks(detailData, checksData, checksAreNewer);
+  const [checksExpanded, setChecksExpanded] = useState(false);
+  const openPrLink = useOpenPrLink(threadRef);
   if (link === null || snapshot === null) return null;
   const { attention, running, completed } = groupPullRequestChecks(detail?.checks ?? []);
   const checks = [...attention, ...running, ...completed];
   const reviewDecision = snapshot.reviewDecision ?? null;
+  const reviewers = detail?.reviewers ?? [];
+  const pipeline = pipelineStage({
+    ...snapshot,
+    ...(detail === null
+      ? {}
+      : { mergeability: detail.mergeability, reviewRequested: reviewers.length > 0 }),
+  });
+  const openInPanel = (event: MouseEvent<HTMLElement>) => openPrLink(event, link.url);
   return (
     <ThreadDetailsSection headingId="thread-details-pull-request-heading" title="Pull request">
-      <div className="flex flex-col gap-1.5 px-2.5 text-xs">
-        <div className="flex min-w-0 items-center gap-1.5">
-          <span className="shrink-0 font-mono text-muted-foreground tabular-nums">
-            #{link.number}
-          </span>
-          <span className="min-w-0 truncate">{snapshot.title}</span>
-        </div>
-        <PipelineStageLabel
-          pipeline={pipelineStage({
-            ...snapshot,
-            ...(detail === null ? {} : { mergeability: detail.mergeability }),
-          })}
-        />
-        {checks.length > 0 ? (
-          <ul className="flex flex-col gap-1 pt-1">
-            {checks.map((check, index) => (
-              // oxlint-disable-next-line react/no-array-index-key -- Check names can repeat; rows hold no state.
-              <li key={`${index}:${check.name}`} className="flex min-w-0 items-center gap-2">
-                <PullRequestCheckStatusIcon status={check.status} />
-                <span className="min-w-0 flex-1 truncate">{check.name}</span>
-                <span className="shrink-0 text-muted-foreground">
-                  {pullRequestCheckStatusLabel(check)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        ) : null}
-        <div className="flex min-w-0 items-center gap-2 pt-1">
-          <span className="text-muted-foreground">Reviews</span>
-          {reviewDecision === null ? (
-            <span className="text-muted-foreground">none yet</span>
-          ) : (
-            <span className="inline-flex items-center gap-1">
-              <PullRequestReviewDecisionGlyph decision={reviewDecision} />
-              {REVIEW_DECISION_LABELS[reviewDecision]}
+      <div className="flex flex-col gap-0.5 px-1 text-xs">
+        <div className="flex min-w-0 items-center gap-0.5">
+          <button
+            type="button"
+            aria-label={`Open #${link.number} in the right panel`}
+            onClick={openInPanel}
+            onAuxClick={openInPanel}
+            className={cn(DETAILS_BUTTON_CLASS, "flex-1")}
+          >
+            <span className="shrink-0 font-mono text-muted-foreground tabular-nums">
+              #{link.number}
             </span>
-          )}
-          {detail !== null && detail.reviewers.length > 0 ? (
-            <span className="ml-auto flex shrink-0 items-center -space-x-1">
-              {detail.reviewers.slice(0, 5).map((reviewer) => (
-                <PullRequestActorAvatar
-                  key={reviewer.login}
-                  actor={reviewer}
-                  className="size-4 ring-1 ring-background"
+            <span className="min-w-0 truncate">{snapshot.title}</span>
+          </button>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  type="button"
+                  aria-label={`Open #${link.number} on the web`}
+                  onClick={() => void readLocalApi()?.shell.openExternal(link.url)}
+                  className={cn(DETAILS_BUTTON_CLASS, "shrink-0 text-muted-foreground")}
                 />
-              ))}
+              }
+            >
+              <ExternalLinkIcon aria-hidden className="size-3.5" />
+            </TooltipTrigger>
+            <TooltipPopup side="top">Open on the web</TooltipPopup>
+          </Tooltip>
+        </div>
+        <button
+          type="button"
+          aria-expanded={checksExpanded}
+          aria-controls="thread-details-pull-request-checks"
+          onClick={() => setChecksExpanded((expanded) => !expanded)}
+          className={DETAILS_BUTTON_CLASS}
+        >
+          <PipelineStageLabel pipeline={pipeline} />
+          <span className="flex-1" />
+          {checks.length > 0 ? (
+            <span className="shrink-0 text-muted-foreground tabular-nums">
+              {checks.length === 1 ? "1 check" : `${checks.length} checks`}
             </span>
           ) : null}
-        </div>
+          <ChevronRightIcon
+            aria-hidden
+            className={cn("size-3.5 shrink-0 text-muted-foreground", checksExpanded && "rotate-90")}
+          />
+        </button>
+        {checksExpanded ? (
+          <div id="thread-details-pull-request-checks" className="flex flex-col gap-0.5 ps-1.5">
+            {checks.length === 0 ? (
+              <span className="px-1.5 py-1 text-muted-foreground">No checks reported.</span>
+            ) : (
+              <ul className="flex flex-col">
+                {checks.map((check, index) => {
+                  const row = (
+                    <>
+                      <PullRequestCheckStatusIcon status={check.status} />
+                      <span className="min-w-0 flex-1 truncate">{check.name}</span>
+                      <span className="shrink-0 text-muted-foreground">
+                        {pullRequestCheckStatusLabel(check)}
+                      </span>
+                    </>
+                  );
+                  const url = check.url;
+                  return (
+                    // oxlint-disable-next-line react/no-array-index-key -- Check names can repeat; rows hold no state.
+                    <li key={`${index}:${check.name}`}>
+                      {url === null ? (
+                        <span className="flex h-6 min-w-0 items-center gap-2 px-1.5">{row}</span>
+                      ) : (
+                        <button
+                          type="button"
+                          aria-label={`${check.name}: ${pullRequestCheckStatusLabel(check)}. Open details`}
+                          onClick={() => void readLocalApi()?.shell.openExternal(url)}
+                          className={cn(DETAILS_BUTTON_CLASS, "w-full")}
+                        >
+                          {row}
+                        </button>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            <span className="flex h-6 min-w-0 items-center gap-2 px-1.5 text-muted-foreground">
+              Review
+              <span className="text-foreground">
+                {reviewDecision === null
+                  ? reviewers.length > 0
+                    ? "waiting on reviewers"
+                    : "nobody asked yet"
+                  : REVIEW_DECISION_LABELS[reviewDecision]}
+              </span>
+            </span>
+          </div>
+        ) : null}
+        <Tooltip disabled={reviewers.length === 0}>
+          <TooltipTrigger
+            render={
+              <button
+                type="button"
+                aria-label={`Open #${link.number} reviews in the right panel`}
+                onClick={openInPanel}
+                onAuxClick={openInPanel}
+                className={DETAILS_BUTTON_CLASS}
+              />
+            }
+          >
+            <span className="text-muted-foreground">Reviews</span>
+            {reviewDecision === null ? (
+              <span className="text-muted-foreground">none yet</span>
+            ) : (
+              <span className="inline-flex items-center gap-1">
+                <PullRequestReviewDecisionGlyph decision={reviewDecision} />
+                {REVIEW_DECISION_LABELS[reviewDecision]}
+              </span>
+            )}
+            {reviewers.length > 0 ? (
+              <span className="ml-auto flex shrink-0 items-center -space-x-1">
+                {reviewers.slice(0, 5).map((reviewer) => (
+                  <PullRequestActorAvatar
+                    key={reviewer.login}
+                    actor={reviewer}
+                    className="size-4 ring-1 ring-background"
+                  />
+                ))}
+              </span>
+            ) : null}
+          </TooltipTrigger>
+          <TooltipPopup side="top">
+            <span className="flex flex-col gap-1">
+              <span className="font-medium">Requested reviewers</span>
+              {reviewers.map((reviewer) => (
+                <span key={reviewer.login} className="flex items-center gap-1.5">
+                  <PullRequestActorAvatar actor={reviewer} />
+                  <span>{reviewer.name?.trim() || reviewer.login}</span>
+                  {reviewer.name?.trim() ? (
+                    <span className="text-muted-foreground">{reviewer.login}</span>
+                  ) : null}
+                </span>
+              ))}
+            </span>
+          </TooltipPopup>
+        </Tooltip>
       </div>
     </ThreadDetailsSection>
   );
 }
+
+const DETAILS_BUTTON_CLASS =
+  "flex h-6 min-w-0 cursor-pointer items-center gap-2 rounded-md px-1.5 text-left outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring";
 
 function ChangeBar({
   additions,
@@ -249,6 +365,72 @@ function LineCounts({ additions, deletions }: { additions: number; deletions: nu
 }
 
 /** Every file the thread changed, from its turn checkpoints, with a per-turn breakdown. */
+/**
+ * A folder of repositories has no checkpoints, so show what is uncommitted in each repository
+ * right now instead. Older servers lack the request and keep the empty state.
+ */
+function NestedRepoChanges({ threadRef }: { threadRef: ScopedThreadRef }) {
+  const thread = useQuietThreadShell(threadRef);
+  const project = useProject(
+    thread === null ? null : scopeProjectRef(threadRef.environmentId, thread.projectId),
+  );
+  const repos =
+    useNestedRepoChanges(
+      threadRef.environmentId,
+      project === null || project.repositoryIdentity != null ? null : project.id,
+    ).data?.repos ?? [];
+  if (repos.length === 0) {
+    return <p className="px-4 py-3 text-xs text-muted-foreground">No changed files yet.</p>;
+  }
+  const largest = Math.max(
+    ...repos.flatMap((repo) => repo.files.map((file) => file.insertions + file.deletions)),
+  );
+  return (
+    <div className="flex flex-col gap-3 px-4 py-3 text-xs">
+      <div className="flex flex-col gap-0.5">
+        <span className="text-sm font-medium">Changes in repos</span>
+        <span className="text-muted-foreground">
+          Uncommitted changes in each repository now, not only this thread's.
+        </span>
+      </div>
+      {repos.map((repo) => (
+        <div key={repo.path} className="flex flex-col">
+          <span className="flex min-w-0 items-center gap-1.5 py-0.5">
+            <FolderIcon aria-hidden className="size-3 shrink-0 text-muted-foreground" />
+            <span className="truncate font-mono font-medium">
+              {repo.path === "" ? (project?.title ?? "Project") : repo.path}
+            </span>
+            {repo.branch !== null ? (
+              <span className="min-w-0 truncate text-muted-foreground">{repo.branch}</span>
+            ) : null}
+            <span className="flex-1" />
+            <LineCounts additions={repo.insertions} deletions={repo.deletions} />
+          </span>
+          {repo.files.map((file) => (
+            <span
+              key={file.path}
+              aria-label={`${file.path}, ${file.insertions} added, ${file.deletions} removed`}
+              className="flex h-6 min-w-0 items-center gap-2 px-1"
+            >
+              <span className="w-3 shrink-0 font-mono text-info-foreground">
+                {kindLetter(file.kind)}
+              </span>
+              <span className="min-w-0 flex-1 truncate font-mono">{file.path}</span>
+              <ChangeBar additions={file.insertions} deletions={file.deletions} largest={largest} />
+              <LineCounts additions={file.insertions} deletions={file.deletions} />
+            </span>
+          ))}
+          {repo.fileCount > repo.files.length ? (
+            <span className="px-1 text-muted-foreground">
+              {repo.fileCount - repo.files.length} more files
+            </span>
+          ) : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function ThreadDetailsFilesTab({
   threadRef,
   onOpenChanges,
@@ -257,9 +439,7 @@ export function ThreadDetailsFilesTab({
   onOpenChanges?: (() => void) | undefined;
 }) {
   const changes = summarizeThreadChanges(useThreadCheckpointSummaries(threadRef));
-  if (changes.files === 0) {
-    return <p className="px-4 py-3 text-xs text-muted-foreground">No changed files yet.</p>;
-  }
+  if (changes.files === 0) return <NestedRepoChanges threadRef={threadRef} />;
   const largest = Math.max(
     ...changes.directories.flatMap((directory) =>
       directory.files.map((file: ThreadChangedFile) => file.additions + file.deletions),

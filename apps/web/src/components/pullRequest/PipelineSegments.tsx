@@ -37,6 +37,7 @@ export function PipelineSegments({
         render={
           <span
             role="img"
+            data-pipeline-segments=""
             aria-label={`Pull request stage: ${pipelineSummary(pipeline)}`}
             className={cn("inline-flex shrink-0 items-center gap-0.5", className)}
           />

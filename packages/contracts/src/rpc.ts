@@ -54,7 +54,14 @@ import {
   IssueTrackerError,
   IssueUpdateInput,
 } from "./issues.ts";
-import { GitHubBillingUsageInput, GitHubBillingUsageResult } from "./githubBilling.ts";
+import {
+  GitHubBillingUsageInput,
+  GitHubBillingUsageResult,
+  GitHubOwnersInput,
+  GitHubOwnersResult,
+  NestedRepoChangesInput,
+  NestedRepoChangesResult,
+} from "./githubBilling.ts";
 import {
   ProviderAuthCancelInput,
   ProviderAuthCompleteInput,
@@ -590,6 +597,8 @@ export const WS_METHODS = {
   issuesAddComment: "issues.addComment",
   issuesCreate: "issues.create",
   sourceControlGithubBillingUsage: "sourceControl.githubBillingUsage",
+  sourceControlGithubOwners: "sourceControl.githubOwners",
+  sourceControlNestedRepoChanges: "sourceControl.nestedRepoChanges",
   pullRequestsFilterOptions: "pullRequests.filterOptions",
   pullRequestsSummary: "pullRequests.summary",
   pullRequestsRouting: "pullRequests.routing",
@@ -1139,6 +1148,18 @@ const WsIssuesCreateRpc = Rpc.make(WS_METHODS.issuesCreate, {
 const WsSourceControlGithubBillingUsageRpc = Rpc.make(WS_METHODS.sourceControlGithubBillingUsage, {
   payload: GitHubBillingUsageInput,
   success: GitHubBillingUsageResult,
+  error: EnvironmentAuthorizationError,
+});
+
+const WsSourceControlGithubOwnersRpc = Rpc.make(WS_METHODS.sourceControlGithubOwners, {
+  payload: GitHubOwnersInput,
+  success: GitHubOwnersResult,
+  error: EnvironmentAuthorizationError,
+});
+
+const WsSourceControlNestedRepoChangesRpc = Rpc.make(WS_METHODS.sourceControlNestedRepoChanges, {
+  payload: NestedRepoChangesInput,
+  success: NestedRepoChangesResult,
   error: EnvironmentAuthorizationError,
 });
 
@@ -2258,6 +2279,8 @@ export const WsRpcGroup = RpcGroup.make(
   WsIssuesAddCommentRpc,
   WsIssuesCreateRpc,
   WsSourceControlGithubBillingUsageRpc,
+  WsSourceControlGithubOwnersRpc,
+  WsSourceControlNestedRepoChangesRpc,
   WsPullRequestsFilterOptionsRpc,
   WsPullRequestsSummaryRpc,
   WsPullRequestsRoutingRpc,

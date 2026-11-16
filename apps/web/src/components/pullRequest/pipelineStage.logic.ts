@@ -14,6 +14,8 @@ export interface PipelineSnapshot {
   readonly reviewDecision?: PullRequestReviewDecision | null | undefined;
   readonly checksState?: PullRequestChecksState | null | undefined;
   readonly mergeability?: PullRequestMergeability | null | undefined;
+  /** Whether anyone is asked to review; unknown keeps an undecided review in progress. */
+  readonly reviewRequested?: boolean | undefined;
 }
 
 export interface Pipeline {
@@ -74,7 +76,9 @@ export function pipelineStage(snapshot: PipelineSnapshot): Pipeline {
       ? "done"
       : snapshot.reviewDecision === "changes-requested"
         ? "blocked"
-        : "active";
+        : snapshot.reviewDecision == null && snapshot.reviewRequested === false
+          ? "pending"
+          : "active";
   const ci: PipelineSegmentState =
     snapshot.checksState === "passing"
       ? "done"
@@ -92,8 +96,17 @@ export function pipelineStage(snapshot: PipelineSnapshot): Pipeline {
       : "pending";
   const segments = ["done", review, ci, merge] as const;
   const blockedIndex = segments.indexOf("blocked");
-  const index = blockedIndex === -1 ? segments.indexOf("active") : blockedIndex;
-  const stage = STAGES[index === -1 ? 3 : index]!;
+  const activeIndex = segments.indexOf("active");
+  // Nothing in progress: the first stage still waiting holds it, such as a review nobody was asked for.
+  const index =
+    blockedIndex !== -1
+      ? blockedIndex
+      : activeIndex !== -1
+        ? activeIndex
+        : review === "pending"
+          ? 1
+          : 3;
+  const stage = STAGES[index]!;
   return {
     segments,
     stage,
@@ -110,7 +123,11 @@ function pipelineDetail(
 ): string | null {
   switch (stage) {
     case "review":
-      return snapshot.reviewDecision === "changes-requested" ? "changes requested" : "waiting";
+      return snapshot.reviewDecision === "changes-requested"
+        ? "changes requested"
+        : snapshot.reviewDecision == null && snapshot.reviewRequested === false
+          ? "no reviewers"
+          : "waiting";
     case "ci":
       return snapshot.checksState === "failing" ? "failing" : "running";
     case "merge":

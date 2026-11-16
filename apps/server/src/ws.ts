@@ -251,6 +251,7 @@ import * as TriageService from "./triage/TriageService.ts";
 import * as PullRequestService from "./pullRequest/PullRequestService.ts";
 import * as IssueTrackers from "./issues/IssueTrackers.ts";
 import * as GitHubBilling from "./sourceControl/GitHubBilling.ts";
+import * as ProjectRepositories from "./sourceControl/ProjectRepositories.ts";
 import * as PullRequestReviewGuideService from "./pullRequest/PullRequestReviewGuideService.ts";
 import { listLinkedPullRequestThreads } from "./pullRequest/linkedThreads.ts";
 import { pullRequestSyncKey } from "./pullRequest/pullRequestSyncKey.ts";
@@ -1478,6 +1479,7 @@ export const layerWsRpc = (
       const pullRequests = yield* PullRequestService.PullRequestService;
       const issueTrackers = yield* IssueTrackers.IssueTrackers;
       const gitHubBilling = yield* GitHubBilling.GitHubBilling;
+      const projectRepositories = yield* ProjectRepositories.ProjectRepositories;
       const reviewGuides = yield* PullRequestReviewGuideService.PullRequestReviewGuideService;
       const pullRequestSync = yield* PullRequestSyncReactor.PullRequestSyncReactor;
       const deviceService = yield* DeviceService.DeviceService;
@@ -2759,6 +2761,10 @@ export const layerWsRpc = (
         [WS_METHODS.issuesAddComment]: (input) => issueTrackers.addComment(input),
         [WS_METHODS.issuesCreate]: (input) => issueTrackers.create(input),
         [WS_METHODS.sourceControlGithubBillingUsage]: (input) => gitHubBilling.usage(input.owner),
+        [WS_METHODS.sourceControlGithubOwners]: (input) =>
+          projectRepositories.githubOwners(input.projectId),
+        [WS_METHODS.sourceControlNestedRepoChanges]: (input) =>
+          projectRepositories.nestedChanges(input.projectId),
         [WS_METHODS.pullRequestsFilterOptions]: (input) => pullRequests.filterOptions(input),
         [WS_METHODS.pullRequestsRoutingIdentity]: (input) => pullRequests.routingIdentity(input),
         [WS_METHODS.pullRequestsRouting]: (input) => pullRequests.routing(input),
@@ -3581,6 +3587,7 @@ export const layer = Layer.unwrap(
     const pullRequests = yield* PullRequestService.PullRequestService;
     const issueTrackers = yield* IssueTrackers.IssueTrackers;
     const gitHubBilling = yield* GitHubBilling.GitHubBilling;
+    const projectRepositories = yield* ProjectRepositories.ProjectRepositories;
     const reviewGuides = yield* PullRequestReviewGuideService.PullRequestReviewGuideService;
     const peerLinks = yield* PeerLinks.PeerLinks;
     const peerLinkRequests = yield* PeerLinkRequests.PeerLinkRequests;
@@ -3672,6 +3679,9 @@ export const layer = Layer.unwrap(
               Layer.provide(Layer.succeed(PullRequestService.PullRequestService, pullRequests)),
               Layer.provide(Layer.succeed(IssueTrackers.IssueTrackers, issueTrackers)),
               Layer.provide(Layer.succeed(GitHubBilling.GitHubBilling, gitHubBilling)),
+              Layer.provide(
+                Layer.succeed(ProjectRepositories.ProjectRepositories, projectRepositories),
+              ),
               Layer.provide(OtlpEndpointCheck.layer),
               Layer.provide(
                 Layer.succeed(

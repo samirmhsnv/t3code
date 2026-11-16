@@ -1,20 +1,16 @@
 import type {
   EnvironmentId,
-  OrchestrationV2PendingBackgroundTask,
   OrchestrationV2ProviderGoal,
   OrchestrationV2ProviderSession,
   ThreadId,
 } from "@t3tools/contracts";
-import type { EnvironmentThreadShell, ThreadStructure } from "@t3tools/client-runtime/state/shell";
+import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/shell";
 import {
-  presentPendingBackgroundWork,
   presentProviderGoal,
   type RunStopPresentation,
 } from "@t3tools/client-runtime/state/thread-execution";
 import { childThreadInputsTitle } from "@t3tools/client-runtime/state/threads";
-import { commandDisplayText } from "@t3tools/client-runtime/work-log/command-label";
 import { formatDuration } from "@t3tools/shared/orchestrationTiming";
-import * as DateTime from "effect/DateTime";
 import {
   CircleStopIcon,
   GitBranchIcon,
@@ -23,9 +19,8 @@ import {
   TargetIcon,
   TriangleAlertIcon,
 } from "lucide-react";
-import { Fragment, type ReactNode } from "react";
+import { Fragment } from "react";
 import { tickTextContent } from "~/lib/tickTextContent";
-import { BackgroundWorkDetails } from "./BackgroundWorkDetails";
 import { Button, InlineButton } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
@@ -170,110 +165,6 @@ export function runStopNowItem(input: {
         ) : null}
       </>
     ),
-  };
-}
-
-/** Background commands and subagents, for the card above the composer. */
-export interface BackgroundWorkCardItem {
-  readonly id: string;
-  readonly waiting: boolean;
-  readonly title: ReactNode;
-  /** The command or the latest progress, shown muted after the title. */
-  readonly detail: ReactNode;
-  readonly startedAtMs: number | null;
-  readonly details: ReactNode;
-  readonly stopDisabled: boolean;
-  readonly stopping: boolean;
-  readonly onStop: () => Promise<void>;
-}
-
-const BACKGROUND_WORK_STATE_PREFIX = /^(?:Waiting|Running)(?: on| ·)? /u;
-
-export function backgroundWorkCardItem(input: {
-  readonly environmentId: EnvironmentId;
-  readonly threadId: ThreadId;
-  readonly tasks: ReadonlyArray<OrchestrationV2PendingBackgroundTask>;
-  readonly turnItems: ThreadStructure["turnItems"];
-  readonly stopDisabled: boolean;
-  readonly stopping: boolean;
-  readonly onStop: () => Promise<void>;
-  readonly onOpenThread: (threadId: ThreadId) => void;
-}): BackgroundWorkCardItem | null {
-  const { onOpenThread } = input;
-  const presentation = presentPendingBackgroundWork(input.tasks);
-  if (presentation === null) return null;
-  const rows = presentation.items.map((task) => {
-    const pending = input.tasks.find((candidate) => candidate.taskId === task.taskId);
-    const itemKey = pending?.nativeItemId ?? task.taskId;
-    // Same key derivePendingBackgroundWork gives turn-item tasks; subagent items carry progress.
-    const item = input.turnItems.findLast(
-      (candidate) => (candidate.nativeItemRef?.nativeId || candidate.id) === itemKey,
-    );
-    const subagent = item?.type === "subagent" ? item : undefined;
-    const command =
-      pending?.command ?? (item?.type === "command_execution" ? item.input : undefined);
-    const commandText = command === undefined ? null : commandDisplayText(command);
-    return {
-      task,
-      label:
-        commandText === task.label ? (
-          <span className="font-mono in-data-[slot=popover-popup]:whitespace-pre-wrap">
-            {task.label}
-          </span>
-        ) : task.label.includes("\n") ? (
-          <span className="in-data-[slot=popover-popup]:whitespace-pre-wrap">{task.label}</span>
-        ) : (
-          task.label
-        ),
-      command: commandText !== null && commandText !== task.label ? commandText : null,
-      activity: subagent?.progress?.replace(/\s+/gu, " ").trim() || null,
-      startedAtMs: item?.startedAt ? DateTime.toEpochMillis(item.startedAt) : null,
-      updatedAtMs: subagent ? DateTime.toEpochMillis(subagent.updatedAt) : 0,
-    };
-  });
-  const [only] = rows.length === 1 ? rows : [];
-  const newest = rows
-    .filter((row) => row.activity)
-    .toSorted((left, right) => right.updatedAtMs - left.updatedAtMs)[0];
-  const summary = presentation.title.replace(BACKGROUND_WORK_STATE_PREFIX, "");
-  return {
-    id: `background-work:${input.threadId}`,
-    waiting: presentation.waiting,
-    title:
-      only && only.task.label !== only.task.kind
-        ? only.label
-        : `${summary.charAt(0).toUpperCase()}${summary.slice(1)}`,
-    detail: only ? (
-      only.command !== null ? (
-        <span className="font-mono">{only.command}</span>
-      ) : (
-        only.activity
-      )
-    ) : newest ? (
-      <>
-        {newest.label}: {newest.activity}
-      </>
-    ) : (
-      rows.map((row, index) => (
-        <Fragment key={row.task.taskId}>
-          {index > 0 ? ", " : null}
-          {row.label}
-        </Fragment>
-      ))
-    ),
-    startedAtMs: only?.startedAtMs ?? null,
-    details: (
-      <BackgroundWorkDetails
-        environmentId={input.environmentId}
-        threadId={input.threadId}
-        tasks={input.tasks}
-        turnItems={input.turnItems}
-        onOpenThread={onOpenThread}
-      />
-    ),
-    stopDisabled: input.stopDisabled,
-    stopping: input.stopping,
-    onStop: input.onStop,
   };
 }
 

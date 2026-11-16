@@ -117,6 +117,7 @@ import * as PullRequestReviewGuideService from "./pullRequest/PullRequestReviewG
 import * as PullRequestService from "./pullRequest/PullRequestService.ts";
 import * as IssueTrackers from "./issues/IssueTrackers.ts";
 import * as GitHubBilling from "./sourceControl/GitHubBilling.ts";
+import * as ProjectRepositories from "./sourceControl/ProjectRepositories.ts";
 import * as PullRequestSyncReactor from "./orchestration-v2/PullRequestSyncReactor.ts";
 import * as RelayClient from "@t3tools/shared/relayClient";
 import * as RemoteOpenTargets from "./environment/RemoteOpenTargets.ts";
@@ -862,6 +863,7 @@ const layerUnusedConfigRpcServices = Layer.mergeAll(
   Layer.mock(PullRequestService.PullRequestService)({}),
   Layer.mock(IssueTrackers.IssueTrackers)({}),
   Layer.mock(GitHubBilling.GitHubBilling)({}),
+  Layer.mock(ProjectRepositories.ProjectRepositories)({}),
   Layer.mock(PullRequestSyncReactor.PullRequestSyncReactor)({}),
   Layer.mock(RelayClient.RelayClient)({}),
   Layer.mock(RepositoryIdentityResolver.RepositoryIdentityResolver)({}),

@@ -65,12 +65,7 @@ import { appAtomRegistry } from "../../rpc/atomRegistry";
 import { readEnvironmentScope } from "../../state/session";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { useOrchestrationCommand } from "../../state/use-orchestration-command";
-import {
-  backgroundWorkCardItem,
-  childInputNowItem,
-  goalNowItem,
-  runStopNowItem,
-} from "./ThreadActivityBanners";
+import { childInputNowItem, goalNowItem, runStopNowItem } from "./ThreadActivityBanners";
 import { useForceStopThread } from "./useForceStopThread";
 import { useAtomValue } from "@effect/atom-react";
 import type { RunStopPresentation } from "@t3tools/client-runtime/state/thread-execution";
@@ -78,6 +73,7 @@ import { Atom } from "effect/reactivity";
 import { environmentThreadDetails } from "../../state/threads";
 import { resolveThreadOpenRoute } from "../../lib/sideChatPane";
 import type { useLocalDispatchState } from "./useLocalDispatchState";
+import { deriveBackgroundWork } from "./backgroundWork.logic";
 const RELATED_THREAD_SHELL_WAIT_MS = 1_000;
 const NO_RUN_STOP_ATOM = Atom.make<RunStopPresentation | null>(null).pipe(
   Atom.withLabel("web-thread-run-stop:empty"),
@@ -108,8 +104,8 @@ interface ThreadLifecycleInput {
   readonly isWorking: boolean;
   /** Also true while the server prepares, starts, or queues a run this client did not send. */
   readonly runIsLive: boolean;
-  readonly pendingBackgroundTasks: Parameters<typeof backgroundWorkCardItem>[0]["tasks"];
-  readonly turnItems: Parameters<typeof backgroundWorkCardItem>[0]["turnItems"];
+  readonly pendingBackgroundTasks: Parameters<typeof deriveBackgroundWork>[0]["tasks"];
+  readonly turnItems: Parameters<typeof deriveBackgroundWork>[0]["turnItems"];
   readonly activePendingApproval: PendingThreadRequests["activePendingApproval"];
   readonly activePendingUserInput: PendingThreadRequests["activePendingUserInput"];
   readonly localCheckoutBranchMismatch: {
@@ -601,7 +597,7 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
         })
       : null;
   const backgroundWork = activeThread
-    ? backgroundWorkCardItem({
+    ? deriveBackgroundWork({
         environmentId,
         threadId: activeThread.id,
         tasks: activeBackgroundTasks,

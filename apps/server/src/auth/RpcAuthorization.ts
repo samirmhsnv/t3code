@@ -129,6 +129,8 @@ export const RPC_REQUIRED_SCOPES = {
   [WS_METHODS.issuesGet]: AuthOrchestrationReadScope,
   [WS_METHODS.issuesOptions]: AuthOrchestrationReadScope,
   [WS_METHODS.sourceControlGithubBillingUsage]: AuthOrchestrationReadScope,
+  [WS_METHODS.sourceControlGithubOwners]: AuthOrchestrationReadScope,
+  [WS_METHODS.sourceControlNestedRepoChanges]: AuthOrchestrationReadScope,
   [WS_METHODS.pullRequestsFilterOptions]: AuthOrchestrationReadScope,
   [WS_METHODS.pullRequestsSummary]: AuthOrchestrationReadScope,
   [WS_METHODS.pullRequestsRouting]: AuthOrchestrationReadScope,

@@ -1285,7 +1285,8 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                   variant === "folder" && "gap-2 ps-2.5",
                   variant === "folder" &&
                     variantAction === "unsettle" &&
-                    "opacity-50 grayscale hover:opacity-100 hover:grayscale-0",
+                    // Grayscale skips the pipeline bars, whose colors carry the PR stage.
+                    "opacity-50 hover:opacity-100 [&:not(:hover)>*>*:not([data-pipeline-segments])]:grayscale",
                 )}
                 onClick={handleClick}
                 onDoubleClick={handleDoubleClick}

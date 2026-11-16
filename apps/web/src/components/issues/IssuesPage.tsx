@@ -8,7 +8,7 @@ import {
 } from "@t3tools/contracts";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { PlusIcon, SearchIcon } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { isElectron } from "../../env";
 import { cn } from "~/lib/utils";
@@ -23,6 +23,7 @@ import { SidebarInset } from "../ui/sidebar";
 import { Skeleton } from "../ui/skeleton";
 import { Toggle, ToggleGroup } from "../ui/toggle-group";
 import { IssueDetailPanel } from "./IssueDetailPanel";
+import { shouldCloseOnEscape } from "./issueDetail.logic";
 import { IssueList } from "./IssueList";
 import {
   filterIssues,
@@ -126,9 +127,32 @@ export function IssuesPage() {
       search: issue === null ? {} : { source: issue.source, issue: issue.id },
     });
 
+  const pageRef = useRef<HTMLDivElement>(null);
+  const hasSelection = selected !== null;
+  // Listens on the window so Escape also closes when focus has fallen back to the body.
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- subscribes to window keydown while an issue is open
+  useEffect(() => {
+    if (!hasSelection) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target instanceof HTMLElement ? event.target : null;
+      const editable =
+        target !== null &&
+        (target.isContentEditable || target.closest("input, textarea, select") !== null);
+      const insidePage =
+        target === null || target === document.body || pageRef.current?.contains(target) === true;
+      if (shouldCloseOnEscape(event, { editable, insidePage }))
+        void navigate({ to: "/issues", search: {} });
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [hasSelection, navigate]);
+
   return (
     <SidebarInset className="h-dvh min-h-0 overflow-hidden overscroll-y-none">
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden bg-background">
+      <div
+        ref={pageRef}
+        className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden bg-background"
+      >
         <WorkspacePageHeader electron={isElectron} className="bg-background">
           <WorkspaceBreadcrumb ariaLabel="Issues breadcrumb">
             <WorkspaceBreadcrumbItem current>
@@ -159,7 +183,8 @@ export function IssuesPage() {
           <div
             className={cn(
               "flex min-h-0 min-w-0 flex-1 flex-col",
-              selected !== null && "max-lg:hidden",
+              selected !== null &&
+                "max-xl:hidden xl:w-96 xl:flex-none xl:border-e xl:border-border",
             )}
           >
             <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border px-4 py-2">
@@ -205,7 +230,7 @@ export function IssuesPage() {
                 </InputGroup>
               </div>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto">
+            <div className="@container min-h-0 flex-1 overflow-y-auto">
               {result ? (
                 <>
                   <SourceNotices result={result} />
@@ -233,15 +258,9 @@ export function IssuesPage() {
             </div>
           </div>
           {selected !== null ? (
-            <aside
-              aria-label="Issue"
-              className="flex min-h-0 w-full flex-col border-border lg:w-1/2 lg:max-w-3xl lg:border-l"
-              onKeyDown={(event) => {
-                if (event.key === "Escape" && event.target === event.currentTarget) open(null);
-              }}
-            >
+            <section aria-label="Issue" className="flex min-h-0 min-w-0 flex-1 flex-col">
               <IssueDetailPanel key={selectedKey} reference={selected} onClose={() => open(null)} />
-            </aside>
+            </section>
           ) : null}
         </div>
       </div>

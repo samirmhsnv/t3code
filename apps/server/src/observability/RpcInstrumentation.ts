@@ -118,6 +118,8 @@ const RPC_AGGREGATES = {
   [WS_METHODS.issuesAddComment]: "issues",
   [WS_METHODS.issuesCreate]: "issues",
   [WS_METHODS.sourceControlGithubBillingUsage]: "source-control",
+  [WS_METHODS.sourceControlGithubOwners]: "source-control",
+  [WS_METHODS.sourceControlNestedRepoChanges]: "source-control",
   [WS_METHODS.pullRequestsFilterOptions]: "pull-requests",
   [WS_METHODS.pullRequestsSummary]: "pull-requests",
   [WS_METHODS.pullRequestsRouting]: "pull-requests",

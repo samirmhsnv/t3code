@@ -3,15 +3,14 @@ import {
   FULL_ACCESS_OVERRIDE_QUESTION,
   fullAccessOverrideExplanation,
 } from "@t3tools/client-runtime/state/thread-requests";
-import { formatDuration } from "@t3tools/shared/orchestrationTiming";
-import { ClockIcon, ShieldIcon, SquareIcon } from "lucide-react";
-import { tickTextContent } from "~/lib/tickTextContent";
+import { ShieldIcon } from "lucide-react";
 import type { PendingApproval } from "../../session-logic";
-import { Button, InlineButton } from "../ui/button";
+import { InlineButton } from "../ui/button";
 import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
 import { ComposerBanner } from "./ComposerBanner";
 import { ComposerPendingApprovalActions } from "./ComposerPendingApprovalActions";
-import type { BackgroundWorkCardItem } from "./ThreadActivityBanners";
+import type { BackgroundWork } from "./backgroundWork.logic";
+import { BackgroundWorkCards } from "./BackgroundWorkCards";
 import { APPROVAL_PRESENTATION } from "./TimelinePendingApprovalRow";
 
 /** A pending approval, as its own card above the composer. */
@@ -103,53 +102,6 @@ function PendingApprovalCard({
   );
 }
 
-/** Background commands and subagents, as a one-line card above the composer. */
-export function BackgroundWorkCard({ item }: { readonly item: BackgroundWorkCardItem }) {
-  const { startedAtMs } = item;
-  return (
-    <ComposerBanner.Root detached density="comfortable" data-background-work-card>
-      <ComposerBanner.Row>
-        <ComposerBanner.Icon>
-          <span className="size-2 rounded-full border-2 border-info" />
-        </ComposerBanner.Icon>
-        <ComposerBanner.Content className="gap-2 whitespace-nowrap">
-          <span className="shrink-0 font-medium text-info">
-            {item.waiting ? "Waiting" : "Running"}
-          </span>
-          <span className="min-w-0 shrink truncate text-foreground">{item.title}</span>
-          {item.detail ? (
-            <span className="w-0 min-w-0 grow truncate text-muted-foreground">{item.detail}</span>
-          ) : null}
-        </ComposerBanner.Content>
-        <ComposerBanner.Actions className="flex-nowrap gap-3">
-          {startedAtMs === null ? null : (
-            <span className="flex items-center gap-1 border-s border-border ps-3 text-muted-foreground">
-              <ClockIcon aria-hidden className="size-3" />
-              <span
-                ref={tickTextContent(
-                  (nowMs) => formatDuration(Math.max(1_000, nowMs - startedAtMs)),
-                  true,
-                )}
-                className="tabular-nums"
-              />
-            </span>
-          )}
-          {item.details}
-          <Button
-            size="xs"
-            variant="outline"
-            disabled={item.stopDisabled}
-            onClick={() => void item.onStop()}
-          >
-            <SquareIcon />
-            {item.stopping ? "Stopping..." : "Stop"}
-          </Button>
-        </ComposerBanner.Actions>
-      </ComposerBanner.Row>
-    </ComposerBanner.Root>
-  );
-}
-
 /**
  * What is live in the thread and needs a hand, stacked above the composer: approvals the agent is
  * waiting on, then background work.
@@ -168,7 +120,7 @@ export function ComposerActivityCards({
     requestId: RuntimeRequestId,
     decision: ProviderApprovalDecision,
   ) => Promise<unknown>;
-  readonly backgroundWork: BackgroundWorkCardItem | null;
+  readonly backgroundWork: BackgroundWork | null;
 }) {
   if (approvals.length === 0 && backgroundWork === null) return null;
   return (
@@ -182,7 +134,7 @@ export function ComposerActivityCards({
           onRespondToApproval={onRespondToApproval}
         />
       ))}
-      {backgroundWork ? <BackgroundWorkCard item={backgroundWork} /> : null}
+      {backgroundWork ? <BackgroundWorkCards work={backgroundWork} /> : null}
     </div>
   );
 }
