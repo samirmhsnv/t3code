@@ -1766,6 +1766,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("server settings"
         const router = ProviderInstanceId.make("openrouter");
         const withUsage = yield* serverSettings.updateSettings({
           cloudSpeechCredentials: { openai: usageReference, xai: "literal-fixture" },
+          issueTrackerCredentials: { linear: usageReference },
           textGenerators: {
             [router]: {
               kind: "openaiCompatible",
@@ -1824,6 +1825,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("server settings"
           xai: SECRET_REDACTED,
           openrouter: "",
         });
+        assert.deepEqual(legacy.issueTrackerCredentials, { linear: SECRET_REDACTED, deckbell: "" });
         assert.equal(legacy.sourceControlHosts.bitbucket?.accessToken, SECRET_REDACTED);
         assert.equal(legacy.usageLimitSources[hub]?.managementKey, SECRET_REDACTED);
         assert.equal(legacy.textGenerators[router]?.apiKey, SECRET_REDACTED);
@@ -1835,6 +1837,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("server settings"
         assert.equal(configOf(legacy, openCode)?.serverPassword, SECRET_REDACTED);
         const echoed = yield* serverSettings.updateSettings({
           cloudSpeechCredentials: legacy.cloudSpeechCredentials,
+          issueTrackerCredentials: legacy.issueTrackerCredentials,
           sourceControlHosts: legacy.sourceControlHosts,
           usageLimitSources: legacy.usageLimitSources,
           textGenerators: legacy.textGenerators,
@@ -1854,6 +1857,7 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("server settings"
           xai: "literal-fixture",
           openrouter: "",
         });
+        assert.deepEqual(echoed.issueTrackerCredentials.linear, usageReference);
         assert.deepEqual(echoed.easDeviceHosts[0]?.accessToken, easReference);
         assert.deepEqual(echoed.simlockDeviceHosts[0]?.agentToken, simlockReference);
         assert.deepEqual(configOf(echoed, antigravity)?.apiKey, antigravityReference);
@@ -1951,6 +1955,8 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("server settings"
         "cloudSpeechCredentials.openai",
         "cloudSpeechCredentials.xai",
         "cloudSpeechCredentials.openrouter",
+        "issueTrackerCredentials.linear",
+        "issueTrackerCredentials.deckbell",
         "easDeviceHosts.[].accessToken",
         "simlockDeviceHosts.[].agentToken",
         "usageLimitSources.*.managementKey",

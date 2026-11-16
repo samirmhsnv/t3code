@@ -551,6 +551,19 @@ const savedPullRequestSummariesAtom = Atom.make((get) => {
   return summaries;
 });
 
+/** Keys (see `threadLinkedPullRequestKey`) of every pull request a thread has linked. */
+export const threadLinkedPullRequestKeysAtom = Atom.make(
+  (get) => new Set(get(savedPullRequestSummariesAtom).keys()),
+);
+
+export function threadLinkedPullRequestKey(
+  entry: Pick<PullRequestRef, "host" | "repository" | "number"> & {
+    readonly environmentId: EnvironmentId;
+  },
+): string {
+  return savedPullRequestKey(entry.environmentId, entry);
+}
+
 const savedPullRequestSummaryAtom = Atom.family((key: string) =>
   Atom.make((get) => get(savedPullRequestSummariesAtom).get(key) ?? null).pipe(
     Atom.withEquality((previous, next) => JSON.stringify(previous) === JSON.stringify(next)),

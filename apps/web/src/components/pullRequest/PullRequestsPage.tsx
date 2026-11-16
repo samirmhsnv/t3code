@@ -111,8 +111,16 @@ import {
   restoredPullRequestList,
   usePullRequestTurnRefreshes,
   useSharedPullRequestSummary,
+  threadLinkedPullRequestKey,
+  threadLinkedPullRequestKeysAtom,
   type EnvironmentQueryTarget,
 } from "~/state/pullRequests";
+import * as Schema from "effect/Schema";
+import { useLocalStorage } from "~/hooks/useLocalStorage";
+import { Label } from "../ui/label";
+import { Switch } from "../ui/switch";
+
+const SHOW_ALL_PULL_REQUESTS_KEY = "t3code:pull-requests:show-all";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { cn } from "~/lib/utils";
 import { primaryServerKeybindingsAtom } from "~/state/server";
@@ -978,6 +986,13 @@ export function PullRequestsPage() {
     refreshListAndStats(requestedStatsScope);
     setDetailRefreshToken((token) => token + 1);
   };
+  // Off by default: the page lists the pull requests agents linked from threads.
+  const [showAllPullRequests, setShowAllPullRequests] = useLocalStorage(
+    SHOW_ALL_PULL_REQUESTS_KEY,
+    false,
+    Schema.Boolean,
+  );
+  const threadLinkedKeys = useAtomValue(threadLinkedPullRequestKeysAtom);
   const {
     hosts,
     displayGroups,
@@ -988,7 +1003,16 @@ export function PullRequestsPage() {
   } = usePullRequestDisplayGroups({
     answered,
     host: search.host,
-    groups,
+    groups: showAllPullRequests
+      ? groups
+      : groups
+          .map((group) => ({
+            ...group,
+            entries: group.entries.filter((entry) =>
+              threadLinkedKeys.has(threadLinkedPullRequestKey(entry)),
+            ),
+          }))
+          .filter((group) => group.entries.length > 0),
     statsByRow,
     overrides,
     state: search.state,
@@ -1417,7 +1441,19 @@ export function PullRequestsPage() {
     onState: (state: PullRequestListState) => updateListScope({ state }),
     onHost: (host: string | undefined) => updateListScope({ host }),
     searchInput,
-    sortMenu,
+    sortMenu: (
+      <>
+        <Label className="h-8 shrink-0">
+          <Switch
+            size="sm"
+            checked={showAllPullRequests}
+            onCheckedChange={(checked) => setShowAllPullRequests(Boolean(checked))}
+          />
+          Show all PRs
+        </Label>
+        {sortMenu}
+      </>
+    ),
     filtersMenu,
     rightPanelControl: !pullRequestsSupported ? null : (
       <span

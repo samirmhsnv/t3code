@@ -40,6 +40,7 @@ import * as RpcMiddleware from "effect/rpc/RpcMiddleware";
 import { NonNegativeInt, TrimmedNonEmptyString } from "./baseSchemas.ts";
 import { SecretSourceCheckResult } from "./settingsSecretValue.ts";
 import { SecretReference } from "./secretReference.ts";
+import { IssueListInput, IssueListResult } from "./issues.ts";
 import {
   ProviderAuthCancelInput,
   ProviderAuthCompleteInput,
@@ -568,6 +569,7 @@ export const WS_METHODS = {
 
   pullRequestsList: "pullRequests.list",
   pullRequestsListStats: "pullRequests.listStats",
+  issuesList: "issues.list",
   pullRequestsFilterOptions: "pullRequests.filterOptions",
   pullRequestsSummary: "pullRequests.summary",
   pullRequestsRouting: "pullRequests.routing",
@@ -1075,6 +1077,12 @@ const WsPullRequestsListStatsRpc = Rpc.make(WS_METHODS.pullRequestsListStats, {
   payload: PullRequestListStatsInput,
   success: PullRequestListStatsResult,
   error: PullRequestRpcError,
+});
+
+const WsIssuesListRpc = Rpc.make(WS_METHODS.issuesList, {
+  payload: IssueListInput,
+  success: IssueListResult,
+  error: EnvironmentAuthorizationError,
 });
 
 const WsPullRequestsFilterOptionsRpc = Rpc.make(WS_METHODS.pullRequestsFilterOptions, {
@@ -2186,6 +2194,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsCloudInstallRelayClientRpc,
   WsPullRequestsListRpc,
   WsPullRequestsListStatsRpc,
+  WsIssuesListRpc,
   WsPullRequestsFilterOptionsRpc,
   WsPullRequestsSummaryRpc,
   WsPullRequestsRoutingRpc,

@@ -4,6 +4,7 @@ import {
   CloudSpeechCredentials,
   CodexSettings,
   EasDeviceHostConfig,
+  IssueTrackerCredentials,
   type ProviderInstanceConfig,
   type ServerSettings,
   type SettingsSecretValue,
@@ -49,6 +50,7 @@ const providerSecretFields = new Map([
 const usageLimitSecretFields = secretSettingsFields(UsageLimitSourceConfig);
 const textGeneratorSecretFields = secretSettingsFields(TextGeneratorConfig);
 const voiceSecretFields = secretSettingsFields(CloudSpeechCredentials);
+const issueTrackerSecretFields = secretSettingsFields(IssueTrackerCredentials);
 const easDeviceHostSecretFields = secretSettingsFields(EasDeviceHostConfig);
 const simlockDeviceHostSecretFields = secretSettingsFields(SimlockDeviceHostConfig);
 const encode = (value: string) => Buffer.from(value, "utf8").toString("base64url");
@@ -254,6 +256,11 @@ function mapSecretFieldGroups(
       voiceSecretFields,
       (provider) => `voice-cloud-${provider}`,
     ) as ServerSettings["cloudSpeechCredentials"],
+    issueTrackerCredentials: mapFields(
+      settings.issueTrackerCredentials,
+      issueTrackerSecretFields,
+      (source) => `issue-tracker-${source}`,
+    ) as ServerSettings["issueTrackerCredentials"],
     providerInstances,
     sourceControlHosts,
     usageLimitSources,

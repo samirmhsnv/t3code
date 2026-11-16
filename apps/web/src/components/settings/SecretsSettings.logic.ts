@@ -2,6 +2,8 @@ import {
   CLOUD_SPEECH_LABELS,
   CloudSpeechProvider,
   EasDeviceHostConfig,
+  ISSUE_SOURCE_LABELS,
+  IssueSource,
   isSecretReference,
   secretReferencesInSettings,
   type ServerSettings,
@@ -23,6 +25,7 @@ type SecretUseSettings = Pick<
   | "easDeviceHosts"
   | "simlockDeviceHosts"
   | "cloudSpeechCredentials"
+  | "issueTrackerCredentials"
 >;
 
 interface SecretProviderUse {
@@ -111,6 +114,12 @@ export function secretProviderUses(
       const credential = settings.cloudSpeechCredentials[provider];
       return isSecretReference(credential) && credential.provider === providerId
         ? [{ id: `voice:${provider}`, label: `Voice · ${CLOUD_SPEECH_LABELS[provider]}` }]
+        : [];
+    }),
+    ...IssueSource.literals.flatMap((source) => {
+      const credential = settings.issueTrackerCredentials[source];
+      return isSecretReference(credential) && credential.provider === providerId
+        ? [{ id: `issues:${source}`, label: `Issues · ${ISSUE_SOURCE_LABELS[source]}` }]
         : [];
     }),
   ];

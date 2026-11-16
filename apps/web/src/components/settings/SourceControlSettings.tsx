@@ -40,6 +40,7 @@ import { SourceControlAppSignInSettings } from "./SourceControlAppSignInSettings
 import { SourceControlTokenSettings } from "./SourceControlTokenSettings";
 import { RedactedSensitiveText } from "./RedactedSensitiveText";
 import { SourceControlWritingSettingsSection } from "./SourceControlWritingSettings";
+import { IssueTrackerSettingsSection } from "./IssueTrackerSettings";
 import {
   SettingsPageContainer,
   SettingsSearchTarget,
@@ -582,6 +583,7 @@ export function SourceControlSettingsPanel() {
       )}
 
       <SourceControlWritingSettingsSection />
+      <IssueTrackerSettingsSection />
     </SettingsPageContainer>
   );
 }

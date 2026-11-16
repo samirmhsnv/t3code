@@ -26,6 +26,7 @@ import { UsageLimitSourceId } from "./usageLimitSourceId.ts";
 import { UsageModelFilter } from "./usage.ts";
 import { SecretProviderId, SecretProviderSlug } from "./secretReference.ts";
 import { SettingsSecretValue } from "./settingsSecretValue.ts";
+import { IssueTrackerCredentials, IssueTrackerCredentialsPatch } from "./issues.ts";
 import { EnvironmentMachineKind, ThreadEnvMode, WorktreeSubmodules } from "./environment.ts";
 import { KeybindingShortcut } from "./keybindings.ts";
 import {
@@ -1392,6 +1393,9 @@ export const ServerSettings = Schema.Struct({
   cloudSpeechCredentials: CloudSpeechCredentials.pipe(
     Schema.withDecodingDefault(Effect.succeed({ openai: "", xai: "", openrouter: "" })),
   ),
+  issueTrackerCredentials: IssueTrackerCredentials.pipe(
+    Schema.withDecodingDefault(Effect.succeed({ linear: "", deckbell: "" })),
+  ),
   speechModelId: Schema.String.pipe(
     Schema.withDecodingDefault(Effect.succeed("handy-computer/parakeet-unified-en-0.6b-gguf")),
   ),
@@ -1854,6 +1858,7 @@ export const ServerSettingsPatch = Schema.Struct({
       openrouter: Schema.optionalKey(SettingsSecretValue),
     }),
   ),
+  issueTrackerCredentials: Schema.optionalKey(IssueTrackerCredentialsPatch),
   speechModelId: Schema.optionalKey(Schema.String),
   speechAcceleration: Schema.optionalKey(SpeechAcceleration),
   speechModelUnloadTimeout: Schema.optionalKey(SpeechModelUnloadTimeout),

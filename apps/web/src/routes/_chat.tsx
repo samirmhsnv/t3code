@@ -1,5 +1,6 @@
 import { Outlet, createFileRoute, redirect } from "@tanstack/react-router";
 
+import { ContentTabs } from "../components/ContentTabs";
 import { ThreadRouteView } from "../components/ThreadRouteView";
 import { isAppModalPage } from "../components/sidebar/mainAppLocation";
 import { SidebarInset } from "../components/ui/sidebar";
@@ -16,13 +17,15 @@ function ChatRouteLayout() {
       {shownTarget?.kind === "server" && !modalOpen ? (
         <ThreadLinkPrompt threadRef={shownTarget.threadRef} />
       ) : null}
-      {shownTarget ? (
-        <ThreadRouteView target={shownTarget} background={modalOpen} />
-      ) : modalOpen ? (
-        <SidebarInset className="h-dvh" />
-      ) : (
-        <Outlet />
-      )}
+      <ContentTabs>
+        {shownTarget ? (
+          <ThreadRouteView target={shownTarget} background={modalOpen} />
+        ) : modalOpen ? (
+          <SidebarInset className="h-dvh" />
+        ) : (
+          <Outlet />
+        )}
+      </ContentTabs>
       {modalOpen ? <Outlet /> : null}
     </>
   );
