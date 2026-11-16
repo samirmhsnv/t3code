@@ -204,6 +204,12 @@ describe("HostResources.layer", () => {
       assert.strictEqual(snapshot.cpuCount, 8);
       assert.closeTo(snapshot.cpuUtilization ?? Number.NaN, 0.25, 1e-9);
       assert.strictEqual(snapshot.availableMemoryBytes, 2 * GiB);
+      // The home volume is real here; it reports both sizes or neither.
+      assert.strictEqual(
+        snapshot.totalDiskBytes === undefined,
+        snapshot.availableDiskBytes === undefined,
+      );
+      assert.isTrue((snapshot.availableDiskBytes ?? 0) <= (snapshot.totalDiskBytes ?? 0));
     }).pipe(Effect.provide(linuxHost(unlimitedCgroup))),
   );
 

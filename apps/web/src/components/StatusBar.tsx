@@ -8,7 +8,7 @@ import type {
   ServerProviderUsageWindow,
   ThreadId,
 } from "@t3tools/contracts";
-import { CpuIcon, MemoryStickIcon } from "lucide-react";
+import { CpuIcon, HardDriveIcon, MemoryStickIcon } from "lucide-react";
 import { type ComponentProps, useContext, useEffect } from "react";
 
 import { cn } from "~/lib/utils";
@@ -55,11 +55,10 @@ export function StatusBar() {
   const limited = providers.filter(
     (provider) => provider.enabled && provider.installed && headlineWindow(provider) !== null,
   );
-  // A thread on another machine (a devbox) shows that machine's load beside this one.
-  const remoteEnvironmentId =
-    routeEnvironmentId !== null && routeEnvironmentId !== primaryEnvironmentId
-      ? routeEnvironmentId
-      : null;
+  // This client's own server first, then every other environment it is linked to.
+  const environmentIds = [...presentationById.keys()].toSorted(
+    (left, right) => Number(right === primaryEnvironmentId) - Number(left === primaryEnvironmentId),
+  );
 
   return (
     <footer className="flex h-6 shrink-0 items-center gap-2 overflow-hidden border-t border-border/60 bg-background px-3 text-2xs text-muted-foreground tabular-nums">
@@ -73,20 +72,21 @@ export function StatusBar() {
       </div>
       <div className="flex shrink-0 items-center gap-2">
         <StatusBarThreadActivity />
-        {primaryEnvironmentId !== null ? (
-          <HostStats environmentId={primaryEnvironmentId} label={null} polls />
-        ) : null}
-        {remoteEnvironmentId !== null ? (
-          <>
-            {/* The connection probe refreshes the remote stats, so they don't poll too. */}
-            <StatusBarConnectionHealth environmentId={remoteEnvironmentId} />
-            <HostStats
-              environmentId={remoteEnvironmentId}
-              label={presentationById.get(remoteEnvironmentId)?.entry.target.label ?? "Remote"}
-              polls={false}
-            />
-          </>
-        ) : null}
+        {environmentIds.map((environmentId) => {
+          const label = presentationById.get(environmentId)?.entry.target.label ?? "Remote";
+          const isPrimary = environmentId === primaryEnvironmentId;
+          return (
+            <span
+              key={environmentId}
+              className="inline-flex items-center gap-1 border-l border-border/60 pl-2"
+            >
+              <span className="text-foreground">{label}:</span>
+              {/* A remote's connection probe refreshes its stats, so they don't poll too. */}
+              {isPrimary ? null : <StatusBarConnectionHealth environmentId={environmentId} />}
+              <HostStats environmentId={environmentId} label={label} polls={isPrimary} />
+            </span>
+          );
+        })}
       </div>
     </footer>
   );
@@ -252,8 +252,18 @@ function BudgetHeadline({ spent, budget }: { spent: number; budget: number }) {
   );
 }
 
+// Above 70% is a heads-up, above 80% is a problem.
+function usageLevel(percent: number): "ok" | "warning" | "critical" {
+  return percent > 80 ? "critical" : percent > 70 ? "warning" : "ok";
+}
+
 function usageTextClass(percent: number): string {
-  return percent >= 90 ? "text-warning-foreground" : "text-foreground";
+  const level = usageLevel(percent);
+  return level === "critical"
+    ? "text-error-foreground"
+    : level === "warning"
+      ? "text-warning-foreground"
+      : "text-foreground";
 }
 
 /** A hoverable bar segment; tooltips anchor to it. */
@@ -275,7 +285,11 @@ function UsageMeter({ percent }: { percent: number }) {
       <span
         className={cn(
           "block h-full rounded-full",
-          percent >= 90 ? "bg-warning" : "bg-foreground/60",
+          usageLevel(percent) === "critical"
+            ? "bg-error"
+            : usageLevel(percent) === "warning"
+              ? "bg-warning"
+              : "bg-foreground/60",
         )}
         style={{ width: `${Math.min(100, Math.max(0, percent))}%` }}
       />
@@ -293,7 +307,7 @@ function HostStats({
   polls,
 }: {
   environmentId: EnvironmentId;
-  label: string | null;
+  label: string;
   polls: boolean;
 }) {
   const registry = useContext(RegistryContext);
@@ -306,15 +320,29 @@ function HostStats({
     return () => clearInterval(timer);
   }, [registry, atom, polls]);
   if (result._tag !== "Success") return null;
-  const { cpuUtilization, cpuCount, availableMemoryBytes, totalMemoryBytes } = result.value;
-  const machine = label ?? "This machine";
+  const {
+    cpuUtilization,
+    cpuCount,
+    availableMemoryBytes,
+    totalMemoryBytes,
+    availableDiskBytes,
+    totalDiskBytes,
+  } = result.value;
+  const usedDiskBytes =
+    totalDiskBytes === undefined || availableDiskBytes === undefined
+      ? null
+      : totalDiskBytes - availableDiskBytes;
+  const disk =
+    usedDiskBytes === null || !totalDiskBytes
+      ? null
+      : Math.round((usedDiskBytes / totalDiskBytes) * 100);
+  const machine = label;
   const usedMemoryBytes = totalMemoryBytes - availableMemoryBytes;
   const memory =
     totalMemoryBytes > 0 ? Math.round((usedMemoryBytes / totalMemoryBytes) * 100) : null;
   const cpu = cpuUtilization === null ? null : Math.round(cpuUtilization * 100);
   return (
     <span className="inline-flex items-center gap-1">
-      {label !== null ? <span className="px-1 text-foreground">{label}</span> : null}
       {cpu !== null ? (
         <Tooltip>
           <TooltipTrigger render={<StatusItem />}>
@@ -335,6 +363,18 @@ function HostStats({
           <TooltipPopup side="top">
             {machine} memory: {formatGigabytes(usedMemoryBytes)} of{" "}
             {formatGigabytes(totalMemoryBytes)} used
+          </TooltipPopup>
+        </Tooltip>
+      ) : null}
+      {disk !== null && usedDiskBytes !== null && totalDiskBytes !== undefined ? (
+        <Tooltip>
+          <TooltipTrigger render={<StatusItem />}>
+            <HardDriveIcon aria-label="Storage" className="size-3" />
+            <span className={usageTextClass(disk)}>{disk}%</span>
+          </TooltipTrigger>
+          <TooltipPopup side="top">
+            {machine} storage: {formatGigabytes(usedDiskBytes)} of {formatGigabytes(totalDiskBytes)}{" "}
+            used, {formatGigabytes(totalDiskBytes - usedDiskBytes)} free
           </TooltipPopup>
         </Tooltip>
       ) : null}

@@ -1,3 +1,5 @@
+// @effect-diagnostics nodeBuiltinImport:off - Effect FileSystem has no statfs for disk space.
+import * as NodeFSP from "node:fs/promises";
 import * as NodeOS from "node:os";
 import type { HostResourcesSnapshot } from "@t3tools/contracts";
 import * as HostProcess from "@t3tools/shared/HostProcess";
@@ -172,7 +174,22 @@ const make = Effect.fn("makeHostResources")(function* () {
         memoryMax - (memoryCurrent - reclaimable),
       );
     }
+    // An unreadable volume just leaves storage out of the snapshot.
+    const disk = yield* Effect.promise(() =>
+      NodeFSP.statfs(NodeOS.homedir()).then(
+        (stats) => ({
+          availableDiskBytes: stats.bavail * stats.bsize,
+          totalDiskBytes: stats.blocks * stats.bsize,
+        }),
+        () => null,
+      ),
+    );
     return {
+      ...(disk !== null &&
+      Number.isSafeInteger(disk.totalDiskBytes) &&
+      Number.isSafeInteger(disk.availableDiskBytes)
+        ? disk
+        : {}),
       sampledAt: DateTime.toEpochMillis(yield* DateTime.now),
       cpuUtilization,
       cpuCount,
