@@ -148,6 +148,11 @@ function formatMonth(year: number, month: number): string {
   return new Date(year, month - 1).toLocaleString(undefined, { month: "long", year: "numeric" });
 }
 
+// A fork identifies by its upstream; its own CI bills to the origin remote's owner.
+function ownerOfCanonicalKey(canonicalKey: string | undefined): string | null {
+  return canonicalKey?.split("/")[1] ?? null;
+}
+
 /** Billing for the GitHub owner of the open thread's project, read by that environment's `gh`. */
 function GitHubUsage({
   environmentId,
@@ -161,9 +166,22 @@ function GitHubUsage({
     thread === null ? null : scopeProjectRef(environmentId, thread.projectId),
   );
   const identity = project?.repositoryIdentity;
-  const owner = identity?.provider === "github" ? (identity.owner ?? null) : null;
+  const owner =
+    identity?.provider === "github"
+      ? (ownerOfCanonicalKey(identity.origin?.canonicalKey) ?? identity.owner ?? null)
+      : null;
   const { data } = useGitHubBillingUsage(environmentId, owner);
-  if (owner === null || data === null || data._tag !== "Ok") return null;
+  if (owner === null || data === null) return null;
+  if (data._tag !== "Ok") {
+    return (
+      <Tooltip>
+        <TooltipTrigger render={<StatusItem />}>
+          <GitHubMark aria-label="GitHub" className="size-3 opacity-50" />
+        </TooltipTrigger>
+        <TooltipPopup side="top">{data.reason}</TooltipPopup>
+      </Tooltip>
+    );
+  }
   const { headline } = data;
   return (
     <Tooltip>
