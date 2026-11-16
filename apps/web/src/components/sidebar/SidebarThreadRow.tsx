@@ -72,6 +72,7 @@ import {
 
 import { useRightPanelStore } from "../../rightPanelStore";
 import { useOpenPrLink } from "../../lib/openPullRequestLink";
+import { SidebarThreadPipeline, SidebarThreadRoleTag } from "./SidebarThreadRowBadges";
 import { useUiStateStore } from "../../uiStateStore";
 import { useThreadSelectionStore } from "../../threadSelectionStore";
 import { useNowMinute } from "../../hooks/useNowMinute";
@@ -1324,6 +1325,12 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
               ) : null}
               {draftIndicator}
               {title}
+              {variant === "folder" ? (
+                <>
+                  <SidebarThreadRoleTag thread={thread} />
+                  <SidebarThreadPipeline thread={thread} />
+                </>
+              ) : null}
               {multiline ? titleLineIcons : null}
               {pinIndicator}
               {multiline ? null : terminalStatusIcon}

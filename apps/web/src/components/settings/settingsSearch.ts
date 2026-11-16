@@ -460,6 +460,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["usage quota rate limit reset recover continue"],
   },
   {
+    id: "agent-capacity",
+    title: "Agent capacity",
+    to: "/settings/general",
+    searchTerms: ["limit working agents concurrent parallel status bar"],
+  },
+  {
     id: "working-shelf",
     title: msg("Working section"),
     to: "/settings/general",

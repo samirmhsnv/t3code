@@ -6,6 +6,7 @@ import { cn } from "~/lib/utils";
 import { isElectron } from "../env";
 import { useIssueList } from "../state/issues";
 import { openThreadLinkedPullRequestCountAtom } from "../state/pullRequests";
+import { AttentionStrip } from "./attention/AttentionStrip";
 import { readPullRequestListPreferences } from "./pullRequest/pullRequestListPreferences";
 import { useNavigateToMainApp } from "./sidebar/mainAppLocation";
 
@@ -58,6 +59,7 @@ export function ContentTabs({ children }: { children: ReactNode }) {
           }
         />
       </nav>
+      <AttentionStrip />
       {children}
     </div>
   );

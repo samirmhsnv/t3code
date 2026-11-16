@@ -64,6 +64,7 @@ import { scopedIdleCompaction } from "./scopedSettings";
 import { ProjectDefaultsSettings } from "./ProjectDefaultsSettings";
 import { ThreadTitleInstructionsSettings } from "./ThreadTitleInstructionsSettings";
 import { SnoozePresetsRow } from "./SnoozePresetsSettings";
+import { AgentCapacitySettingsRow } from "./AgentCapacitySettingsRow";
 import { useDesktopUpdateState } from "../../state/desktopUpdate";
 import { managedTelemetryOffMessage, usePrimaryManagedPolicy } from "../../state/managedPolicy";
 import {
@@ -930,6 +931,7 @@ export function GeneralSettingsPanel() {
             />
           }
         />
+        <AgentCapacitySettingsRow />
       </SettingsSection>
 
       <SettingsSection id="confirmations" title={gt("Confirmations")}>

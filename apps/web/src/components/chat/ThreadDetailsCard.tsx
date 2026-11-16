@@ -27,6 +27,7 @@ export function ThreadDetailsCard({
   handle,
   dock,
   headerActions,
+  headerTabs,
   contentKey,
   onContextMenu,
   children,
@@ -39,6 +40,8 @@ export function ThreadDetailsCard({
   dock?: HTMLElement | null | undefined;
   /** Controls in the docked column's header. */
   headerActions?: ReactNode;
+  /** A view switcher in the docked header, or atop the popover card. */
+  headerTabs?: ReactNode;
   /** Changes when the set of rendered items changes, so cached heights are measured again. */
   contentKey: string;
   onContextMenu?: MouseEventHandler<HTMLDivElement>;
@@ -116,7 +119,10 @@ export function ThreadDetailsCard({
     >
       <div className={cardClassName} data-thread-details-card>
         <ScrollArea scrollFade className="min-h-0">
-          <div ref={setContentElement}>{children(density)}</div>
+          <div ref={setContentElement}>
+            {headerTabs ? <div className="flex justify-end px-2 pt-2">{headerTabs}</div> : null}
+            {children(density)}
+          </div>
         </ScrollArea>
       </div>
       {secondary && density === "full" ? (
@@ -153,6 +159,11 @@ export function ThreadDetailsCard({
           )}
         >
           <h2 className="min-w-0 flex-1 truncate text-xs font-semibold">Thread details</h2>
+          {headerTabs ? (
+            <div className="flex shrink-0 items-center [-webkit-app-region:no-drag]">
+              {headerTabs}
+            </div>
+          ) : null}
           {headerActions ? (
             <div className="flex shrink-0 items-center [-webkit-app-region:no-drag]">
               {headerActions}

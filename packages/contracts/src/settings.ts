@@ -403,7 +403,14 @@ export const VoiceTranscriptionDestination = Schema.Union([
 ]);
 export type VoiceTranscriptionDestination = typeof VoiceTranscriptionDestination.Type;
 
+/** How many agents may work at once before the status bar reads full. */
+export const AgentCapacityLimit = Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 64 }));
+export const DEFAULT_AGENT_CAPACITY_LIMIT = 8;
+
 export const ClientSettingsSchema = Schema.Struct({
+  agentCapacityLimit: AgentCapacityLimit.pipe(
+    Schema.withDecodingDefault(Effect.succeed(DEFAULT_AGENT_CAPACITY_LIMIT)),
+  ),
   notificationMode: NotificationMode.pipe(
     Schema.withDecodingDefault(Effect.succeed("off" as const)),
   ),
@@ -2037,6 +2044,7 @@ export function requiredScopesForProjectMutation(
 }
 
 export const ClientSettingsPatch = Schema.Struct({
+  agentCapacityLimit: Schema.optionalKey(AgentCapacityLimit),
   notificationMode: Schema.optionalKey(NotificationMode),
   inAppNotificationsEnabled: Schema.optionalKey(Schema.Boolean),
   diffColorScheme: Schema.optionalKey(DiffColorScheme),

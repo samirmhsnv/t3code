@@ -12,6 +12,9 @@ import { cn } from "~/lib/utils";
 import { useEnvironments } from "../state/environments";
 import { useQuietThreadShells } from "../state/entities";
 import { useUiStateStore } from "../uiStateStore";
+import { useClientSettings } from "../hooks/useSettings";
+import { StatusBarThreadListPopover } from "./StatusBarThreadListPopover";
+import { threadNeedsYou } from "./statusBarThreadList.logic";
 import { hasUnseenCompletion, resolveThreadLastVisitedAt } from "./Sidebar.logic";
 import { serverEnvironment } from "../state/server";
 import { environmentThreadShells } from "../state/threads";
@@ -23,35 +26,22 @@ const SLOW_CONNECTION_MS = 300;
 
 interface ThreadActivity {
   readonly needsYou: number;
-  readonly nextNeedsYou: ScopedThreadRef | null;
   readonly working: number;
 }
 
 // Counts only: the bar re-renders when a number changes, not on every shell update.
 const threadActivityAtom = Atom.make((get): ThreadActivity => {
   let needsYou = 0;
-  let nextNeedsYou: ScopedThreadRef | null = null;
   let working = 0;
   for (const thread of get(environmentThreadShells.quietThreadShellsAtom)) {
-    if (
-      thread.hasPendingApprovals ||
-      thread.hasPendingUserInput ||
-      thread.pendingSubagentRequest != null ||
-      (thread.pendingGuestMessageCount ?? 0) > 0
-    ) {
-      needsYou += 1;
-      nextNeedsYou ??= { environmentId: thread.environmentId, threadId: thread.id };
-    } else if (isThreadWorking(thread)) {
-      working += 1;
-    }
+    if (threadNeedsYou(thread)) needsYou += 1;
+    else if (isThreadWorking(thread)) working += 1;
   }
-  return { needsYou, nextNeedsYou, working };
+  return { needsYou, working };
 }).pipe(
   Atom.withEquality(
     (previous: ThreadActivity, next: ThreadActivity) =>
-      previous.needsYou === next.needsYou &&
-      previous.working === next.working &&
-      previous.nextNeedsYou?.threadId === next.nextNeedsYou?.threadId,
+      previous.needsYou === next.needsYou && previous.working === next.working,
   ),
 );
 
@@ -66,6 +56,10 @@ function ActivityItem(props: ComponentProps<"button">) {
       )}
     />
   );
+}
+
+function shellKey(thread: { environmentId: EnvironmentId; id: ThreadId }): string {
+  return scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id));
 }
 
 function threadRef(thread: { environmentId: EnvironmentId; id: ThreadId }): ScopedThreadRef {
@@ -95,61 +89,54 @@ function useUnreadThreads(): readonly ScopedThreadRef[] {
 /** Threads waiting on you, agents working, and unread results, across every machine. */
 export function StatusBarThreadActivity() {
   const router = useRouter();
-  const { needsYou, nextNeedsYou, working } = useAtomValue(threadActivityAtom);
+  const { needsYou, working } = useAtomValue(threadActivityAtom);
+  const capacity = useClientSettings((settings) => settings.agentCapacityLimit);
   const unread = useUnreadThreads();
-  const open = (ref: ScopedThreadRef | null | undefined) => {
-    if (ref == null) return;
+  const open = (ref: ScopedThreadRef) => {
     void router.navigate({ to: "/$environmentId/$threadId", params: buildThreadRouteParams(ref) });
   };
+  const unreadKeys = unread.map(scopedThreadKey);
+  const shared = { unreadKeys, keyOf: shellKey, onOpen: open };
   return (
     <>
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <ActivityItem
-              className={cn(needsYou > 0 && "text-warning-foreground")}
-              disabled={needsYou === 0}
-              onClick={() => open(nextNeedsYou)}
-            />
-          }
-        >
-          <CircleAlertIcon aria-hidden className="size-3" />
-          {needsYou}
-        </TooltipTrigger>
-        <TooltipPopup side="top">
-          {needsYou === 0
-            ? "Nothing needs your approval or input"
-            : `${needsYou === 1 ? "1 thread needs" : `${needsYou} threads need`} your approval or input. Click to open the next one.`}
-        </TooltipPopup>
-      </Tooltip>
-      <Tooltip>
-        <TooltipTrigger render={<ActivityItem className="cursor-default" />}>
-          <BotIcon aria-hidden className="size-3" />
-          {working}
-        </TooltipTrigger>
-        <TooltipPopup side="top">
-          {working === 1 ? "1 agent" : `${working} agents`} working
-        </TooltipPopup>
-      </Tooltip>
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <ActivityItem
-              className={cn(unread.length > 0 && "text-success-foreground")}
-              disabled={unread.length === 0}
-              onClick={() => open(unread[0])}
-            />
-          }
-        >
-          <MailIcon aria-hidden className="size-3" />
-          {unread.length}
-        </TooltipTrigger>
-        <TooltipPopup side="top">
-          {unread.length === 0
-            ? "No unread results"
-            : `${unread.length === 1 ? "1 thread has" : `${unread.length} threads have`} an unread result. Click to open the newest.`}
-        </TooltipPopup>
-      </Tooltip>
+      <StatusBarThreadListPopover
+        bucket="needs-you"
+        count={needsYou}
+        {...shared}
+        trigger={
+          <ActivityItem
+            className={cn(needsYou > 0 && "text-warning-foreground")}
+            disabled={needsYou === 0}
+          />
+        }
+      >
+        <CircleAlertIcon aria-hidden className="size-3" />
+        {needsYou}
+      </StatusBarThreadListPopover>
+      <StatusBarThreadListPopover
+        bucket="working"
+        count={working}
+        countLabel={`of ${capacity}`}
+        {...shared}
+        trigger={<ActivityItem aria-label={`${working} of ${capacity} agents working`} />}
+      >
+        <BotIcon aria-hidden className="size-3" />
+        {working}/{capacity}
+      </StatusBarThreadListPopover>
+      <StatusBarThreadListPopover
+        bucket="unread"
+        count={unread.length}
+        {...shared}
+        trigger={
+          <ActivityItem
+            className={cn(unread.length > 0 && "text-success-foreground")}
+            disabled={unread.length === 0}
+          />
+        }
+      >
+        <MailIcon aria-hidden className="size-3" />
+        {unread.length}
+      </StatusBarThreadListPopover>
     </>
   );
 }

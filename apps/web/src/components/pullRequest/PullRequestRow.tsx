@@ -24,6 +24,8 @@ import {
   PullRequestRowLines,
 } from "./PullRequestListRow";
 import { PullRequestLabelChip, PullRequestReviewDecisionGlyph } from "./pullRequestPresentation";
+import { PipelineStageLabel } from "./PipelineSegments";
+import { pipelineStage } from "./pipelineStage.logic";
 
 const LABEL_SLOTS = [
   { overflow: "@xl/pr-row-meta:hidden" },
@@ -177,6 +179,7 @@ function PullRequestRowImpl({
           }
           status={
             <>
+              <PipelineStageLabel pipeline={pipelineStage(entry)} />
               {entry.stack ? (
                 <PullRequestStackPopover
                   environmentId={entry.environmentId}

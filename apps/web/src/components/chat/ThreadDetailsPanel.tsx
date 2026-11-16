@@ -9,6 +9,13 @@ import { BranchToolbar } from "../BranchToolbar";
 import BaseGitActionsControl from "../GitActionsControl";
 import { memo, useState, type ComponentProps } from "react";
 import { ThreadDetailsCard } from "./ThreadDetailsCard";
+import {
+  ThreadDetailsActivitySection,
+  ThreadDetailsFilesTab,
+  ThreadDetailsPullRequestSection,
+  ThreadDetailsTabSwitcher,
+  type ThreadDetailsTab,
+} from "./ThreadDetailsTabs";
 import { ThreadDetailsSection } from "./ThreadDetailsSection";
 import { ThreadAutomationsPanel } from "./ThreadAutomationsPanel";
 import { ThreadRelationshipsPanel } from "./ThreadRelationshipsControl";
@@ -67,6 +74,9 @@ interface ThreadDetailsPanelProps extends Pick<
 export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
   const visible = useClientSettings(resolveThreadDetailsVisibility);
   const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
+  const [tab, setTab] = useState<ThreadDetailsTab>("details");
+  // A draft has no turns, so it has no files to show.
+  const activeTab = props.draftId ? "details" : tab;
   const activeThreadRef = { environmentId: props.environmentId, threadId: props.threadId };
   const project = useProject(scopeProjectRef(props.environmentId, props.projectId));
   const serverConfig = useServerConfigs().get(props.environmentId);
@@ -122,9 +132,18 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
           <EllipsisIcon />
         </Button>
       }
-      contentKey={THREAD_DETAILS_ITEMS.filter((item) => visible[item.id])
+      headerTabs={
+        props.draftId ? null : (
+          <ThreadDetailsTabSwitcher
+            threadRef={activeThreadRef}
+            tab={activeTab}
+            onTabChange={setTab}
+          />
+        )
+      }
+      contentKey={`${activeTab}:${THREAD_DETAILS_ITEMS.filter((item) => visible[item.id])
         .map((item) => item.id)
-        .join(",")}
+        .join(",")}`}
       onContextMenu={(event) => {
         // Popups the card opens bubble here through React; they, fields, links, and selected text
         // keep their own menus.
@@ -144,7 +163,7 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
         setMenuPosition({ x: event.clientX, y: event.clientY });
       }}
       secondary={
-        !props.draftId && (visible.lineage || visible.sideChats) ? (
+        activeTab === "details" && !props.draftId && (visible.lineage || visible.sideChats) ? (
           <ThreadRelationshipsPanel
             environmentId={props.environmentId}
             threadId={props.threadId}
@@ -155,6 +174,14 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
       }
     >
       {(density) => {
+        if (activeTab === "files") {
+          return (
+            <ThreadDetailsFilesTab
+              threadRef={activeThreadRef}
+              onOpenChanges={props.onOpenChanges}
+            />
+          );
+        }
         // Section flags follow the rows that will render, so no empty section steals the divider rule.
         const show = {
           branch: offersGit && props.isGitRepo && visible.branch,
@@ -168,6 +195,7 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
         return (
           <>
             <div className="group/details-items">
+              {props.draftId ? null : <ThreadDetailsActivitySection threadRef={activeThreadRef} />}
               {show.branch || show.pullRequests || show.git ? (
                 <ThreadDetailsSection
                   headingId="thread-details-version-control-heading"
@@ -201,6 +229,10 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
                   </div>
                 </ThreadDetailsSection>
               ) : null}
+
+              {props.draftId ? null : (
+                <ThreadDetailsPullRequestSection threadRef={activeThreadRef} />
+              )}
 
               {density === "full" && !props.draftId && visible.servers ? (
                 <ThreadServersPanel environmentId={props.environmentId} threadId={props.threadId} />
