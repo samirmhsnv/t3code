@@ -22,6 +22,10 @@ export const ModelListRow = memo(function ModelListRow(props: {
   providerAccentColor?: string | undefined;
   acpRegistryAgentId?: string | undefined;
   acpRegistryIconUrl?: string | undefined;
+  /** A short note such as "Most capable"; most models have none. */
+  descriptor?: string | null;
+  /** Off in a provider's own tab, where every row shares its logo. */
+  showProviderIcon?: boolean;
   isFavorite: boolean;
   /** In Favorites every row is starred, so the star shows only on hover. */
   favoriteStarOnHover?: boolean;
@@ -53,22 +57,26 @@ export const ModelListRow = memo(function ModelListRow(props: {
           "data-disabled:pointer-events-auto data-disabled:cursor-not-allowed",
       )}
     >
-      {/* One row shape in every tab: the logo names the provider, so Favorites needs no second line. */}
-      <ProviderInstanceIcon
-        driverKind={props.driverKind}
-        displayName={props.providerDisplayName}
-        accentColor={props.providerAccentColor}
-        acpRegistryAgentId={props.acpRegistryAgentId}
-        acpRegistryIconUrl={props.acpRegistryIconUrl}
-        showBadge={props.showInstanceBadge}
-        className="size-4"
-        iconClassName="size-4"
-        indicatorBackground="var(--popover)"
-        badgeClassName="right-[-0.125rem] bottom-[-0.125rem] h-3 min-w-3 px-0.5 text-5xs"
-      />
+      <span className="flex w-3.5 shrink-0 justify-center" aria-hidden="true">
+        {props.isSelected ? <CheckIcon className="size-3.5 text-primary" /> : null}
+      </span>
+      {props.showProviderIcon !== false ? (
+        <ProviderInstanceIcon
+          driverKind={props.driverKind}
+          displayName={props.providerDisplayName}
+          accentColor={props.providerAccentColor}
+          acpRegistryAgentId={props.acpRegistryAgentId}
+          acpRegistryIconUrl={props.acpRegistryIconUrl}
+          showBadge={props.showInstanceBadge}
+          className="size-4"
+          iconClassName="size-4"
+          indicatorBackground="var(--popover)"
+          badgeClassName="right-[-0.125rem] bottom-[-0.125rem] h-3 min-w-3 px-0.5 text-5xs"
+        />
+      ) : null}
       <div className="flex min-w-0 flex-1 items-center gap-2 text-left">
         <div
-          className="min-w-0 truncate text-sm font-normal leading-snug"
+          className="min-w-0 shrink-0 truncate text-sm font-normal leading-snug max-w-full"
           // Names the row in full on hover only when it is cut off.
           onPointerEnter={(event) => {
             const name = event.currentTarget;
@@ -79,7 +87,6 @@ export const ModelListRow = memo(function ModelListRow(props: {
           {/* The logo is decorative, so name the provider for screen readers. */}
           <span className="sr-only">, {props.providerDisplayName}</span>
         </div>
-        {props.isSelected ? <CheckIcon className="size-3.5 shrink-0" aria-hidden="true" /> : null}
         {props.subProvider ? (
           <span className="min-w-0 shrink truncate text-xs text-muted-foreground/70">
             {props.subProvider}
@@ -91,6 +98,11 @@ export const ModelListRow = memo(function ModelListRow(props: {
             aria-label="New model"
           >
             New
+          </span>
+        ) : null}
+        {props.descriptor ? (
+          <span className="min-w-0 flex-1 truncate text-muted-foreground text-xs">
+            {props.descriptor}
           </span>
         ) : null}
         {props.unavailable ? (

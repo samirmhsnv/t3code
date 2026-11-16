@@ -5,7 +5,6 @@ import type {
   EnvironmentId,
   GitHubBillingProductUsage,
   ServerProvider,
-  ServerProviderUsageWindow,
   ThreadId,
 } from "@t3tools/contracts";
 import { ProviderDriverKind } from "@t3tools/contracts";
@@ -32,22 +31,10 @@ import {
 import type { ProviderTotals } from "@t3tools/shared/usageMerge";
 import { StatusBarConnectionHealth, StatusBarThreadActivity } from "./StatusBarActivity";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
+import { formatResetsIn, headlineWindow, usageTextClass } from "./usage/providerUsageHeadline";
+import { UsageMeter } from "./usage/UsageMeter";
 
 const HOST_STATS_REFRESH_MS = 3_000;
-
-/** The limit the bar shows for a provider: its weekly window, else its first. */
-function headlineWindow(provider: ServerProvider): ServerProviderUsageWindow | null {
-  const windows = provider.usageLimits?.windows ?? [];
-  return windows.find((window) => window.kind === "weekly") ?? windows[0] ?? null;
-}
-
-function formatResetsIn(resetsAt: string | undefined, now: number): string | null {
-  if (resetsAt === undefined) return null;
-  const minutes = Math.max(0, Math.round((Date.parse(resetsAt) - now) / 60_000));
-  if (minutes >= 24 * 60) return `${Math.round(minutes / (24 * 60))}d`;
-  if (minutes >= 60) return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
-  return `${minutes}m`;
-}
 
 /** Provider limits on the left, machine load on the right. */
 export function StatusBar() {
@@ -373,20 +360,6 @@ function BudgetHeadline({ spent, budget }: { spent: number; budget: number }) {
   );
 }
 
-// Above 70% is a heads-up, above 80% is a problem.
-function usageLevel(percent: number): "ok" | "warning" | "critical" {
-  return percent > 80 ? "critical" : percent > 70 ? "warning" : "ok";
-}
-
-function usageTextClass(percent: number): string {
-  const level = usageLevel(percent);
-  return level === "critical"
-    ? "text-error-foreground"
-    : level === "warning"
-      ? "text-warning-foreground"
-      : "text-foreground";
-}
-
 /** A hoverable bar segment; tooltips anchor to it. */
 function StatusItem(props: ComponentProps<"span">) {
   return (
@@ -397,24 +370,6 @@ function StatusItem(props: ComponentProps<"span">) {
         props.className,
       )}
     />
-  );
-}
-
-function UsageMeter({ percent }: { percent: number }) {
-  return (
-    <span aria-hidden className="h-1 w-6 shrink-0 overflow-hidden rounded-full bg-muted">
-      <span
-        className={cn(
-          "block h-full rounded-full",
-          usageLevel(percent) === "critical"
-            ? "bg-error"
-            : usageLevel(percent) === "warning"
-              ? "bg-warning"
-              : "bg-foreground/60",
-        )}
-        style={{ width: `${Math.min(100, Math.max(0, percent))}%` }}
-      />
-    </span>
   );
 }
 

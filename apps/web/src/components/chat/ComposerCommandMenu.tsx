@@ -5,6 +5,7 @@ import {
   type ProviderSkillSourceKind,
 } from "@t3tools/client-runtime/providerSkills";
 import {
+  PROVIDER_DISPLAY_NAMES,
   type EnvironmentId,
   type EnvironmentMachineKind,
   type ProjectEntry,
@@ -29,7 +30,8 @@ import { memo, useLayoutEffect, useRef, useState } from "react";
 import { type ComposerSlashCommand, type ComposerTriggerKind } from "../../composer-logic";
 import { cn } from "~/lib/utils";
 import { Badge } from "../ui/badge";
-import { Command, CommandGroup, CommandItem, CommandList } from "../ui/command";
+import { Command, CommandGroup, CommandGroupLabel, CommandItem, CommandList } from "../ui/command";
+import { Kbd } from "../ui/kbd";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { EnvironmentMachineIcon } from "../EnvironmentMachineIcon";
 import { PierreEntryIcon } from "./PierreEntryIcon";
@@ -148,21 +150,52 @@ export const ComposerCommandMenu = memo(function ComposerCommandMenu(props: {
             aria-label={props.triggerKind ? LISTBOX_LABEL_BY_TRIGGER[props.triggerKind] : undefined}
             className="max-h-72 min-h-0 scroll-pb-6"
           >
-            <CommandGroup>
-              {props.items.map((item) => (
-                <ComposerCommandMenuItem
-                  key={item.id}
-                  optionId={composerSuggestionOptionId(props.listId, item.id)}
-                  item={item}
-                  triggerKind={props.triggerKind}
-                  resolvedTheme={props.resolvedTheme}
-                  isActive={props.activeItemId === item.id}
-                  onHighlight={props.onHighlightedItemChange}
-                  onSelect={props.onSelect}
-                />
-              ))}
-            </CommandGroup>
+            {groupComposerMenuItems(props.items, props.triggerKind).map((group) => (
+              <CommandGroup key={group.key}>
+                <CommandGroupLabel>
+                  <span className="flex items-center gap-1.5 px-3 pt-2 pb-1 text-muted-foreground text-xs">
+                    {group.provider ? (
+                      <ProviderInstanceIcon
+                        driverKind={group.provider}
+                        displayName={group.label}
+                        className="size-3.5 shrink-0"
+                        iconClassName="size-3.5"
+                      />
+                    ) : null}
+                    {group.label}
+                  </span>
+                </CommandGroupLabel>
+                {group.items.map((item) => (
+                  <ComposerCommandMenuItem
+                    key={item.id}
+                    optionId={composerSuggestionOptionId(props.listId, item.id)}
+                    item={item}
+                    triggerKind={props.triggerKind}
+                    resolvedTheme={props.resolvedTheme}
+                    isActive={props.activeItemId === item.id}
+                    onHighlight={props.onHighlightedItemChange}
+                    onSelect={props.onSelect}
+                  />
+                ))}
+              </CommandGroup>
+            ))}
           </CommandList>
+        ) : null}
+        {props.items.length > 0 ? (
+          <div
+            aria-hidden="true"
+            className="flex shrink-0 items-center gap-3 border-t border-border/70 px-3 py-1.5 text-muted-foreground text-xs"
+          >
+            <ComposerMenuKeyHint keys="↑↓" label="navigate" />
+            <ComposerMenuKeyHint
+              keys="↩"
+              label={props.triggerKind === "slash-command" ? "run" : "insert"}
+            />
+            <ComposerMenuKeyHint keys="esc" label="close" />
+            <span className="ms-auto tabular-nums">
+              {props.items.length} {props.items.length === 1 ? "result" : "results"}
+            </span>
+          </div>
         ) : (
           <div className="px-5 pt-3.5 pb-7">
             <p className="text-secondary-label text-xs">
@@ -263,7 +296,12 @@ const ComposerCommandMenuItem = memo(function ComposerCommandMenuItem(props: {
         />
       ) : null}
       <span className="flex min-w-0 flex-1 items-center gap-2">
-        <span className="min-w-0 max-w-[45%] shrink-0 truncate font-sans text-xs font-medium">
+        <span
+          className={cn(
+            "min-w-0 max-w-[45%] shrink-0 truncate text-xs font-medium",
+            MONO_ITEM_TYPES.has(props.item.type) ? "font-mono" : "font-sans",
+          )}
+        >
           {isSlashSkill ? (
             <>
               <span className="text-secondary-label">/skill:</span>
@@ -293,10 +331,91 @@ const ComposerCommandMenuItem = memo(function ComposerCommandMenuItem(props: {
             showSkillSuffix={props.triggerKind === "skill"}
           />
         ) : null}
+        {props.isActive ? (
+          <Kbd className={cn("shrink-0", !skillSourceKind && "ms-auto")}>↩</Kbd>
+        ) : null}
       </span>
     </CommandItem>
   );
 });
+
+const MONO_ITEM_TYPES = new Set<ComposerCommandItem["type"]>([
+  "slash-command",
+  "provider-slash-command",
+  "skill",
+]);
+
+type ComposerMenuGroup = {
+  key: string;
+  label: string;
+  provider: ProviderDriverKind | null;
+  items: ComposerCommandItem[];
+};
+
+function providerName(provider: ProviderDriverKind): string {
+  return PROVIDER_DISPLAY_NAMES[provider] ?? provider;
+}
+
+function composerMenuSection(
+  item: ComposerCommandItem,
+  triggerKind: ComposerTriggerKind | null,
+): Omit<ComposerMenuGroup, "items"> {
+  switch (item.type) {
+    case "path":
+      return { key: "path", label: "Files", provider: null };
+    case "thread":
+      return { key: "thread", label: "Threads", provider: null };
+    case "pull-request":
+      return { key: "pull-request", label: "Pull requests", provider: null };
+    case "environment":
+      return { key: "environment", label: "Environments", provider: null };
+    case "model":
+      return { key: "model", label: "Models", provider: null };
+    case "slash-command":
+      return { key: "slash-command", label: "T3 Code", provider: null };
+    case "provider-slash-command":
+      return {
+        key: `provider-command:${item.provider}`,
+        label: providerName(item.provider),
+        provider: item.provider,
+      };
+    case "skill":
+      return triggerKind === "skill"
+        ? {
+            key: `skill:${item.provider}`,
+            label: `${providerName(item.provider)} skills`,
+            provider: item.provider,
+          }
+        : { key: "skill", label: "Skills", provider: null };
+  }
+}
+
+/** Runs of same-kind items under one label; the items keep their ranked order. */
+function groupComposerMenuItems(
+  items: ReadonlyArray<ComposerCommandItem>,
+  triggerKind: ComposerTriggerKind | null,
+): ComposerMenuGroup[] {
+  const groups: ComposerMenuGroup[] = [];
+  for (const item of items) {
+    const section = composerMenuSection(item, triggerKind);
+    const last = groups.at(-1);
+    if (last && last.key.startsWith(`${section.key}#`)) {
+      last.items.push(item);
+    } else {
+      groups.push({ ...section, key: `${section.key}#${groups.length}`, items: [item] });
+    }
+  }
+  return groups;
+}
+
+function ComposerMenuKeyHint(props: { keys: string; label: string }) {
+  return (
+    <span className="flex items-center gap-1">
+      <Kbd variant="outline">{props.keys}</Kbd>
+      {props.label}
+    </span>
+  );
+}
 
 export function composerSuggestionOptionId(listId: string, itemId: string): string {
   // JSON escapes lone UTF-16 surrogates before URI encoding without losing identity.

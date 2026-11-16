@@ -3,7 +3,12 @@ import { resolvePullRequestDetailChecks } from "@t3tools/client-runtime/pull-req
 import { selectEnvironmentQueryData } from "@t3tools/client-runtime/state/runtime";
 import { isThreadWorking } from "@t3tools/client-runtime/state/thread-inbox";
 import { resolveThreadCurrentPullRequestLink } from "@t3tools/client-runtime/thread-pull-requests";
-import type { PullRequestReviewDecision, ScopedThreadRef } from "@t3tools/contracts";
+import type {
+  ProjectId,
+  PullRequestReviewDecision,
+  ScopedThreadRef,
+  ThreadPullRequestLink,
+} from "@t3tools/contracts";
 import { ChevronRightIcon, ExternalLinkIcon, FolderIcon } from "lucide-react";
 import { useState, type MouseEvent, type ReactNode } from "react";
 
@@ -19,7 +24,11 @@ import {
 } from "~/state/entities";
 import { useNestedRepoChanges } from "~/state/projectRepositories";
 import { pullRequestEnvironment } from "~/state/pullRequests";
-import { useEnvironmentQueryIsNewer, useEnvironmentQuerySelector } from "~/state/query";
+import {
+  useEnvironmentQuery,
+  useEnvironmentQueryIsNewer,
+  useEnvironmentQuerySelector,
+} from "~/state/query";
 
 import { PipelineStageLabel } from "../pullRequest/PipelineSegments";
 import { pipelineStage } from "../pullRequest/pipelineStage.logic";
@@ -30,13 +39,17 @@ import {
   pullRequestCheckStatusLabel,
   PullRequestReviewDecisionGlyph,
 } from "../pullRequest/pullRequestPresentation";
+import { Badge } from "../ui/badge";
 import { Toggle, ToggleGroup } from "../ui/toggle-group";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { ThreadDetailsSection } from "./ThreadDetailsSection";
 import {
   changeBarQuarters,
+  parsePatchFileStats,
+  pullRequestFileUrl,
   summarizeThreadChanges,
   threadNowNext,
+  threadPullRequestFileGroups,
   type ThreadChangedFile,
 } from "./threadDetailsTabs.logic";
 
@@ -364,24 +377,19 @@ function LineCounts({ additions, deletions }: { additions: number; deletions: nu
   );
 }
 
-/** Every file the thread changed, from its turn checkpoints, with a per-turn breakdown. */
+type NestedRepo = NonNullable<ReturnType<typeof useNestedRepoChanges>["data"]>["repos"][number];
+
 /**
  * A folder of repositories has no checkpoints, so show what is uncommitted in each repository
- * right now instead. Older servers lack the request and keep the empty state.
+ * right now instead. Older servers lack the request and show nothing here.
  */
-function NestedRepoChanges({ threadRef }: { threadRef: ScopedThreadRef }) {
-  const thread = useQuietThreadShell(threadRef);
-  const project = useProject(
-    thread === null ? null : scopeProjectRef(threadRef.environmentId, thread.projectId),
-  );
-  const repos =
-    useNestedRepoChanges(
-      threadRef.environmentId,
-      project === null || project.repositoryIdentity != null ? null : project.id,
-    ).data?.repos ?? [];
-  if (repos.length === 0) {
-    return <p className="px-4 py-3 text-xs text-muted-foreground">No changed files yet.</p>;
-  }
+function NestedRepoChanges({
+  repos,
+  projectTitle,
+}: {
+  repos: ReadonlyArray<NestedRepo>;
+  projectTitle: string;
+}) {
   const largest = Math.max(
     ...repos.flatMap((repo) => repo.files.map((file) => file.insertions + file.deletions)),
   );
@@ -398,7 +406,7 @@ function NestedRepoChanges({ threadRef }: { threadRef: ScopedThreadRef }) {
           <span className="flex min-w-0 items-center gap-1.5 py-0.5">
             <FolderIcon aria-hidden className="size-3 shrink-0 text-muted-foreground" />
             <span className="truncate font-mono font-medium">
-              {repo.path === "" ? (project?.title ?? "Project") : repo.path}
+              {repo.path === "" ? projectTitle : repo.path}
             </span>
             {repo.branch !== null ? (
               <span className="min-w-0 truncate text-muted-foreground">{repo.branch}</span>
@@ -431,6 +439,223 @@ function NestedRepoChanges({ threadRef }: { threadRef: ScopedThreadRef }) {
   );
 }
 
+const PR_FILE_GROUP_LIMIT = 8;
+const PR_FILES_SHOWN = 50;
+
+const PR_STATE_BADGES = {
+  open: { label: "Open", variant: "success" },
+  draft: { label: "Draft", variant: "secondary" },
+  merged: { label: "Merged", variant: "info" },
+  closed: { label: "Closed", variant: "error" },
+} as const;
+
+function pullRequestStateBadge(snapshot: ThreadPullRequestLink["snapshot"]) {
+  if (snapshot === null) return null;
+  return PR_STATE_BADGES[snapshot.state === "open" && snapshot.isDraft ? "draft" : snapshot.state];
+}
+
+/** The first page of the same diff the PR panel's code tab reads, so opening the PR reuses it. */
+function PullRequestFileList({
+  threadRef,
+  projectId,
+  link,
+}: {
+  threadRef: ScopedThreadRef;
+  projectId: ProjectId;
+  link: ThreadPullRequestLink;
+}) {
+  const serverConfigs = useServerConfigs();
+  const diff = useEnvironmentQuery(
+    serverConfigs.get(threadRef.environmentId) === undefined
+      ? null
+      : pullRequestEnvironment.diff({
+          environmentId: threadRef.environmentId,
+          input: { projectId, host: link.host, repository: link.repository, number: link.number },
+        }),
+  );
+  const data = diff.data;
+  const files = data === null ? null : parsePatchFileStats(data.patch, data.omittedFileStats ?? []);
+  const openPrLink = useOpenPrLink(threadRef);
+  if (files === null) {
+    return (
+      <span className="px-1 py-1 text-muted-foreground">
+        {diff.error === null ? "Loading files…" : "Couldn't load this pull request's files."}
+      </span>
+    );
+  }
+  if (files.length === 0) {
+    return <span className="px-1 py-1 text-muted-foreground">No file changes.</span>;
+  }
+  const largest = Math.max(...files.map((file) => file.additions + file.deletions));
+  const unlisted = Math.max(
+    files.length - PR_FILES_SHOWN,
+    (link.snapshot?.changedFiles ?? 0) - Math.min(files.length, PR_FILES_SHOWN),
+  );
+  return (
+    <>
+      {files.slice(0, PR_FILES_SHOWN).map((file) => {
+        const open = (event: MouseEvent<HTMLElement>) =>
+          openPrLink(event, pullRequestFileUrl(link.url, file.path));
+        return (
+          <button
+            key={file.path}
+            type="button"
+            aria-label={`${file.path}, ${file.additions} added, ${file.deletions} removed. Open in #${link.number}`}
+            onClick={open}
+            onAuxClick={open}
+            className={cn(DETAILS_BUTTON_CLASS, "px-1")}
+          >
+            <span className="w-3 shrink-0 font-mono text-info-foreground">
+              {kindLetter(file.kind)}
+            </span>
+            <span className="min-w-0 flex-1 truncate font-mono">{file.path}</span>
+            <ChangeBar additions={file.additions} deletions={file.deletions} largest={largest} />
+            <LineCounts additions={file.additions} deletions={file.deletions} />
+          </button>
+        );
+      })}
+      {unlisted > 0 ? (
+        <button
+          type="button"
+          onClick={(event) => openPrLink(event, link.url)}
+          onAuxClick={(event) => openPrLink(event, link.url)}
+          className={cn(DETAILS_BUTTON_CLASS, "px-1 text-muted-foreground")}
+        >
+          {unlisted === 1 ? "1 more file" : `${unlisted} more files`}
+        </button>
+      ) : null}
+    </>
+  );
+}
+
+function PullRequestFileGroup({
+  threadRef,
+  projectId,
+  link,
+  expandedByDefault,
+}: {
+  threadRef: ScopedThreadRef;
+  projectId: ProjectId;
+  link: ThreadPullRequestLink;
+  expandedByDefault: boolean;
+}) {
+  const [expanded, setExpanded] = useState(expandedByDefault);
+  const snapshot = link.snapshot;
+  const badge = pullRequestStateBadge(snapshot);
+  const repositoryName = link.repository.split("/").at(-1) ?? link.repository;
+  const listId = `thread-pr-files-${link.host}-${link.repository}-${link.number}`;
+  return (
+    <div className="flex flex-col">
+      <button
+        type="button"
+        aria-expanded={expanded}
+        aria-controls={listId}
+        onClick={() => setExpanded((value) => !value)}
+        className={cn(DETAILS_BUTTON_CLASS, "px-1")}
+      >
+        <ChevronRightIcon
+          aria-hidden
+          className={cn("size-3.5 shrink-0 text-muted-foreground", expanded && "rotate-90")}
+        />
+        <span className="shrink-0 font-mono font-medium tabular-nums">
+          {repositoryName}#{link.number}
+        </span>
+        <span className="min-w-0 flex-1 truncate text-muted-foreground">
+          {snapshot?.title ?? ""}
+        </span>
+        {badge === null ? null : (
+          <Badge size="sm" variant={badge.variant}>
+            {badge.label}
+          </Badge>
+        )}
+        {snapshot?.changedFiles === undefined ? null : (
+          <span className="shrink-0 text-muted-foreground tabular-nums">
+            {snapshot.changedFiles === 1 ? "1 file" : `${snapshot.changedFiles} files`}
+          </span>
+        )}
+        {snapshot?.additions === undefined || snapshot.deletions === undefined ? null : (
+          <LineCounts additions={snapshot.additions} deletions={snapshot.deletions} />
+        )}
+      </button>
+      {expanded ? (
+        <div id={listId} className="flex flex-col ps-4">
+          <PullRequestFileList threadRef={threadRef} projectId={projectId} link={link} />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** Work committed and pushed from the thread, which leaves no checkpoint or uncommitted change. */
+function ThreadPullRequestFiles({
+  threadRef,
+  projectId,
+  links,
+}: {
+  threadRef: ScopedThreadRef;
+  projectId: ProjectId;
+  links: ReadonlyArray<ThreadPullRequestLink>;
+}) {
+  const [showAll, setShowAll] = useState(false);
+  const { groups, hidden } = threadPullRequestFileGroups(
+    links,
+    showAll ? Number.POSITIVE_INFINITY : PR_FILE_GROUP_LIMIT,
+  );
+  return (
+    <div className="flex flex-col gap-2 px-4 py-3 text-xs">
+      <span className="text-sm font-medium">Changed in this thread's PRs</span>
+      <div className="flex flex-col gap-1">
+        {groups.map((group) => (
+          <PullRequestFileGroup
+            key={group.key}
+            threadRef={threadRef}
+            projectId={projectId}
+            link={group.link}
+            expandedByDefault={group.expandedByDefault}
+          />
+        ))}
+        {hidden > 0 ? (
+          <button
+            type="button"
+            onClick={() => setShowAll(true)}
+            className={cn(DETAILS_BUTTON_CLASS, "px-1 text-muted-foreground")}
+          >
+            +{hidden} more
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+/** Without checkpoint changes: uncommitted work in a folder's repos, then the thread's PRs. */
+function ThreadDetailsFilesFallback({ threadRef }: { threadRef: ScopedThreadRef }) {
+  const thread = useQuietThreadShell(threadRef);
+  const project = useProject(
+    thread === null ? null : scopeProjectRef(threadRef.environmentId, thread.projectId),
+  );
+  const repos =
+    useNestedRepoChanges(
+      threadRef.environmentId,
+      project === null || project.repositoryIdentity != null ? null : project.id,
+    ).data?.repos ?? [];
+  const links = (thread?.pullRequests ?? []).filter((link) => link.source !== "stack-dismissed");
+  if (repos.length === 0 && (thread === null || links.length === 0)) {
+    return <p className="px-4 py-3 text-xs text-muted-foreground">No changed files yet.</p>;
+  }
+  return (
+    <>
+      {repos.length > 0 ? (
+        <NestedRepoChanges repos={repos} projectTitle={project?.title ?? "Project"} />
+      ) : null}
+      {thread !== null && links.length > 0 ? (
+        <ThreadPullRequestFiles threadRef={threadRef} projectId={thread.projectId} links={links} />
+      ) : null}
+    </>
+  );
+}
+
+/** Every file the thread changed, from its turn checkpoints, with a per-turn breakdown. */
 export function ThreadDetailsFilesTab({
   threadRef,
   onOpenChanges,
@@ -439,7 +664,7 @@ export function ThreadDetailsFilesTab({
   onOpenChanges?: (() => void) | undefined;
 }) {
   const changes = summarizeThreadChanges(useThreadCheckpointSummaries(threadRef));
-  if (changes.files === 0) return <NestedRepoChanges threadRef={threadRef} />;
+  if (changes.files === 0) return <ThreadDetailsFilesFallback threadRef={threadRef} />;
   const largest = Math.max(
     ...changes.directories.flatMap((directory) =>
       directory.files.map((file: ThreadChangedFile) => file.additions + file.deletions),

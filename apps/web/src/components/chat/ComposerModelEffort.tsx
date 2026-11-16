@@ -19,6 +19,7 @@ import {
   MenuRadioItemIndicator,
   MenuTrigger,
 } from "../ui/menu";
+import { Kbd } from "../ui/kbd";
 import { Switch } from "../ui/switch";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import type { ComposerControlSize } from "./ComposerControl";
@@ -26,6 +27,7 @@ import { ComposerPermissionsSection, type RuntimeModeOption } from "./ComposerFo
 import { composerFloatingLayerProps, focusCheckedPermission } from "./composerEventScope";
 import { EffortGlyph, FastBolt, resolveEffortGlyph } from "./EffortGlyph";
 import { DockedPickerContext } from "./ProviderModelPicker";
+import { ProviderInstanceIcon } from "./ProviderInstanceIcon";
 import {
   getTraitsSectionVisibility,
   type TraitsSelectionInput,
@@ -182,6 +184,8 @@ const COLUMN_LABEL = "px-2 pt-1.5 pb-1 font-medium text-muted-foreground text-xs
 
 function ColumnRow(props: {
   label: string;
+  /** Bars for this level, drawn like the trigger's. */
+  glyph?: { count: number; filled: number } | null;
   /** Shown on hover; the column is too narrow to print it under the label. */
   description?: string | undefined;
   selected: boolean;
@@ -206,15 +210,16 @@ function ColumnRow(props: {
   } as const;
   const content = (
     <>
-      <span className="min-w-0 flex-1 truncate">{props.label}</span>
-      {props.selected ? (
-        <>
-          {props.isDefault ? <span className="sr-only">Default</span> : null}
-          <CheckIcon aria-hidden="true" className="size-3.5" />
-        </>
-      ) : props.isDefault ? (
-        <span className="text-muted-foreground/70 text-xs">Default</span>
+      <span className="flex w-3.5 shrink-0 justify-center" aria-hidden="true">
+        {props.selected ? <CheckIcon className="size-3.5 text-primary" /> : null}
+      </span>
+      {props.glyph ? (
+        <span className="flex w-6 shrink-0 text-primary" aria-hidden="true">
+          <EffortGlyph count={props.glyph.count} filled={props.glyph.filled} />
+        </span>
       ) : null}
+      <span className="min-w-0 flex-1 truncate">{props.label}</span>
+      {props.isDefault ? <span className="text-muted-foreground/70 text-xs">Default</span> : null}
     </>
   );
   if (!props.description) return <button {...rowProps}>{content}</button>;
@@ -335,6 +340,7 @@ function EffortRows(props: { control: ColumnControl; traits: TraitsSelection; lo
           label={option.label}
           selected={option.id === value}
           tabStop={shown ? option.id === value : index === 0}
+          glyph={resolveEffortGlyph(control.descriptor, option.id)}
           description={option.description}
           isDefault={option.isDefault}
           disabled={locked}
@@ -499,31 +505,28 @@ export function ComposerEffortColumn(props: { traits: TraitsSelectionInput | nul
       : null;
   return (
     <>
-      {/* Matches the search row's box, so one rule runs across the top of the popup. */}
-      <div className="shrink-0 px-3 pt-2.5">
-        <div className="flex h-8.25 -translate-y-px items-center gap-2 border-b border-border/70 pb-1.5 text-sm">
-          <span className="text-muted-foreground">
-            {controls?.effort?.descriptor.label ?? (controls?.others.length ? "Options" : "Effort")}
-          </span>
-          <span className="ms-auto min-w-0 truncate text-muted-foreground text-xs">
-            {picker.modelLabel}
-          </span>
-        </div>
+      {/* Matches the list header, so the first level sits on the first model's line. */}
+      <div className="flex h-8 shrink-0 items-center gap-2 px-4 pt-1 text-muted-foreground text-xs">
+        <span className="min-w-0 truncate">
+          {controls?.effort?.descriptor.label ?? (controls?.others.length ? "Options" : "Effort")}
+        </span>
+        <span className="sr-only">{picker.modelLabel}</span>
       </div>
-      {/* pt-2.5 puts the first level on the same line as the first model. */}
       <div
-        className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto overscroll-contain px-2 pt-2.5 pb-1.5"
+        className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto overscroll-contain px-2 pt-1.5 pb-1.5"
         // Capture, so Up and Down on an option row move rows instead of opening its menu.
         onKeyDownCapture={moveBetweenRows}
       >
         {props.traits ? <EffortLevels traits={props.traits} /> : <NoEffortRow />}
+        {props.traits ? <SpeedSection traits={props.traits} /> : null}
+        {props.traits ? <UltracodeRow traits={props.traits} /> : null}
       </div>
     </>
   );
 }
 
-const FOOTER_SEGMENT =
-  "flex h-6 cursor-pointer items-center justify-center gap-1 px-2 text-muted-foreground text-xs outline-none first:rounded-l-md last:rounded-r-md hover:text-foreground data-checked:bg-input/72 data-checked:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset";
+const SPEED_SEGMENT =
+  "flex h-7 flex-1 cursor-pointer items-center justify-center gap-1 rounded-md px-2 text-muted-foreground text-xs outline-none hover:text-foreground data-checked:bg-input/72 data-checked:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset";
 
 function SpeedSegment(props: {
   checked: boolean;
@@ -536,7 +539,7 @@ function SpeedSegment(props: {
     role: "radio",
     "aria-checked": props.checked,
     "data-checked": props.checked || undefined,
-    className: FOOTER_SEGMENT,
+    className: SPEED_SEGMENT,
     onClick: props.onPick,
   } as const;
   const content = (
@@ -556,7 +559,8 @@ function SpeedSegment(props: {
   );
 }
 
-function SpeedControl(props: { traits: TraitsSelectionInput }) {
+/** Service tiers or Claude's Fast mode, under the levels when the model has one. */
+function SpeedSection(props: { traits: TraitsSelectionInput }) {
   const traits = useTraitsSelection(props.traits);
   const { speedSelect, fastToggle } = splitSpeed(
     traits.selectDescriptors,
@@ -564,53 +568,56 @@ function SpeedControl(props: { traits: TraitsSelectionInput }) {
   );
   if (traits.modelIsUnavailable || (!speedSelect && !fastToggle)) return null;
   return (
-    <div
-      role="radiogroup"
-      aria-label={speedSelect?.label ?? fastToggle?.label}
-      className="flex rounded-lg bg-input/40 p-0.5"
-    >
-      {speedSelect
-        ? selectableProviderOptionChoices(speedSelect).map((option) => (
-            <SpeedSegment
-              key={option.id}
-              checked={option.id === traits.selectValue(speedSelect)}
-              label={option.label}
-              description={option.description}
-              onPick={() => traits.changeSelect(speedSelect, option.id)}
-            />
-          ))
-        : fastToggle
-          ? ([false, true] as const).map((value) => (
+    <div className="mt-1 border-t border-border/70 pt-1">
+      <div className={COLUMN_LABEL}>Speed</div>
+      <div
+        role="radiogroup"
+        aria-label={speedSelect?.label ?? fastToggle?.label}
+        className="mx-1 flex rounded-lg bg-input/40 p-0.5"
+      >
+        {speedSelect
+          ? selectableProviderOptionChoices(speedSelect).map((option) => (
               <SpeedSegment
-                key={String(value)}
-                checked={(fastToggle.currentValue === true) === value}
-                label={value ? "Fast" : "Standard"}
-                onPick={() => traits.changeBoolean(fastToggle.id, value)}
+                key={option.id}
+                checked={option.id === traits.selectValue(speedSelect)}
+                label={option.label}
+                description={option.description}
+                onPick={() => traits.changeSelect(speedSelect, option.id)}
               />
             ))
-          : null}
+          : fastToggle
+            ? ([false, true] as const).map((value) => (
+                <SpeedSegment
+                  key={String(value)}
+                  checked={(fastToggle.currentValue === true) === value}
+                  label={value ? "Fast" : "Standard"}
+                  onPick={() => traits.changeBoolean(fastToggle.id, value)}
+                />
+              ))
+            : null}
+      </div>
     </div>
   );
 }
 
-function UltracodeControl(props: { traits: TraitsSelectionInput }) {
+function UltracodeRow(props: { traits: TraitsSelectionInput }) {
   const traits = useTraitsSelection(props.traits);
   const { ultracodeToggle } = splitSpeed(traits.selectDescriptors, traits.booleanDescriptors);
   if (traits.modelIsUnavailable || !ultracodeToggle) return null;
   const on = ultracodeToggle.currentValue === true;
   return (
-    <div className="flex rounded-lg bg-input/40 p-0.5">
-      <button
-        type="button"
-        aria-pressed={on}
-        data-checked={on || undefined}
-        className={FOOTER_SEGMENT}
-        onClick={() => traits.changeBoolean(ultracodeToggle.id, !on)}
-      >
-        <WorkflowIcon aria-hidden="true" className="size-3" />
-        {ultracodeToggle.label}
-      </button>
-    </div>
+    <label className={cn(COLUMN_ROW, "mt-1 has-focus-visible:bg-foreground/[0.09]")}>
+      <WorkflowIcon aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground" />
+      <span className="min-w-0 flex-1 truncate">{ultracodeToggle.label}</span>
+      <Switch
+        size="sm"
+        checked={on}
+        onCheckedChange={(next) => traits.changeBoolean(ultracodeToggle.id, next)}
+        aria-label={ultracodeToggle.label}
+        data-effort-row
+        tabIndex={-1}
+      />
+    </label>
   );
 }
 
@@ -656,7 +663,42 @@ function PermissionsMenu(props: {
   );
 }
 
-/** The model picker's footer: speed stays one click away, permissions sit one menu deeper. */
+function PickerSummary(props: { traits: TraitsSelectionInput | null }) {
+  const picker = use(DockedPickerContext);
+  if (!picker.modelLabel) return null;
+  const detail = describeComposerEffort(props.traits, "label", "sm").detail;
+  return (
+    <span className="flex min-w-0 items-center gap-2 text-sm">
+      {picker.entry ? (
+        <ProviderInstanceIcon
+          driverKind={picker.entry.driverKind}
+          displayName={picker.entry.displayName}
+          accentColor={picker.entry.accentColor}
+          acpRegistryAgentId={picker.entry.acpRegistryAgentId}
+          acpRegistryIconUrl={picker.entry.acpRegistryIconUrl}
+          className="size-4"
+          iconClassName="size-4"
+          indicatorBackground="var(--popover)"
+        />
+      ) : null}
+      <span className="min-w-0 truncate">
+        {picker.modelLabel}
+        {detail ? <span className="text-muted-foreground"> · {detail}</span> : null}
+      </span>
+    </span>
+  );
+}
+
+function KeyHint(props: { keys: string; label: string }) {
+  return (
+    <span className="flex items-center gap-1">
+      <Kbd variant="outline">{props.keys}</Kbd>
+      {props.label}
+    </span>
+  );
+}
+
+/** The model picker's footer: what is picked, its keys, and permissions one menu deeper. */
 export function ComposerPickerFooter(props: {
   traits: TraitsSelectionInput | null;
   runtimeMode: RuntimeMode;
@@ -664,14 +706,23 @@ export function ComposerPickerFooter(props: {
   onRuntimeModeChange: (mode: RuntimeMode) => void;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-2 border-t border-border/70 bg-muted/40 px-3 py-2">
-      {props.traits ? <SpeedControl traits={props.traits} /> : null}
-      {props.traits ? <UltracodeControl traits={props.traits} /> : null}
-      <PermissionsMenu
-        runtimeMode={props.runtimeMode}
-        options={props.runtimeModeOptions}
-        onChange={props.onRuntimeModeChange}
-      />
+    <div className="flex shrink-0 items-center gap-3 border-t border-border/70 px-3 py-1.5">
+      <PickerSummary traits={props.traits} />
+      <div className="ms-auto flex shrink-0 items-center gap-3">
+        <span
+          aria-hidden="true"
+          className="flex items-center gap-3 text-muted-foreground text-xs max-lg:hidden"
+        >
+          <KeyHint keys="↑↓" label="model" />
+          <KeyHint keys="↩" label="select" />
+          <KeyHint keys="→" label="reasoning" />
+        </span>
+        <PermissionsMenu
+          runtimeMode={props.runtimeMode}
+          options={props.runtimeModeOptions}
+          onChange={props.onRuntimeModeChange}
+        />
+      </div>
     </div>
   );
 }
