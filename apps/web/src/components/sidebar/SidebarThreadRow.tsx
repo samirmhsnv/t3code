@@ -122,7 +122,6 @@ import { useThreadRunningTerminalIds } from "../../state/terminalSessions";
 import { InlineButton } from "../ui/button";
 import { Kbd } from "../ui/kbd";
 import { Menu, MenuItem, MenuItemDetail, MenuPopup, MenuSeparator, MenuTrigger } from "../ui/menu";
-import { observeVisibleAnimation } from "~/lib/visibleAnimation";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { MiddleTruncate } from "../ui/middle-truncate";
 import { useThreadHasUnsentDraft } from "../../composerDraftStore";
@@ -553,14 +552,7 @@ function TopStatusIcon(props: { icon: keyof typeof TOP_STATUS_ICONS; className: 
 function FolderStatusGlyph(props: { status: SidebarThreadStatus; isUnread: boolean }) {
   const { status, isUnread } = props;
   if (status === "preparing" || status === "working" || status === "waiting") {
-    // Spins only while on screen in a visible window; reduced motion keeps it still.
-    return (
-      <CircleDashedIcon
-        aria-label="Working"
-        ref={observeVisibleAnimation}
-        className="size-3.5 text-info-foreground motion-safe:visible-animate-spin"
-      />
-    );
+    return <CircleDashedIcon aria-label="Working" className="size-3.5 text-info-foreground" />;
   }
   const dotClassName =
     status === "approval" || status === "input" || status === "request"
