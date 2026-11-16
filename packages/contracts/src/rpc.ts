@@ -41,6 +41,7 @@ import { NonNegativeInt, TrimmedNonEmptyString } from "./baseSchemas.ts";
 import { SecretSourceCheckResult } from "./settingsSecretValue.ts";
 import { SecretReference } from "./secretReference.ts";
 import { IssueListInput, IssueListResult } from "./issues.ts";
+import { GitHubBillingUsageInput, GitHubBillingUsageResult } from "./githubBilling.ts";
 import {
   ProviderAuthCancelInput,
   ProviderAuthCompleteInput,
@@ -570,6 +571,7 @@ export const WS_METHODS = {
   pullRequestsList: "pullRequests.list",
   pullRequestsListStats: "pullRequests.listStats",
   issuesList: "issues.list",
+  sourceControlGithubBillingUsage: "sourceControl.githubBillingUsage",
   pullRequestsFilterOptions: "pullRequests.filterOptions",
   pullRequestsSummary: "pullRequests.summary",
   pullRequestsRouting: "pullRequests.routing",
@@ -1082,6 +1084,12 @@ const WsPullRequestsListStatsRpc = Rpc.make(WS_METHODS.pullRequestsListStats, {
 const WsIssuesListRpc = Rpc.make(WS_METHODS.issuesList, {
   payload: IssueListInput,
   success: IssueListResult,
+  error: EnvironmentAuthorizationError,
+});
+
+const WsSourceControlGithubBillingUsageRpc = Rpc.make(WS_METHODS.sourceControlGithubBillingUsage, {
+  payload: GitHubBillingUsageInput,
+  success: GitHubBillingUsageResult,
   error: EnvironmentAuthorizationError,
 });
 
@@ -2195,6 +2203,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsPullRequestsListRpc,
   WsPullRequestsListStatsRpc,
   WsIssuesListRpc,
+  WsSourceControlGithubBillingUsageRpc,
   WsPullRequestsFilterOptionsRpc,
   WsPullRequestsSummaryRpc,
   WsPullRequestsRoutingRpc,

@@ -112,6 +112,7 @@ const RPC_AGGREGATES = {
   [WS_METHODS.pullRequestsList]: "pull-requests",
   [WS_METHODS.pullRequestsListStats]: "pull-requests",
   [WS_METHODS.issuesList]: "issues",
+  [WS_METHODS.sourceControlGithubBillingUsage]: "source-control",
   [WS_METHODS.pullRequestsFilterOptions]: "pull-requests",
   [WS_METHODS.pullRequestsSummary]: "pull-requests",
   [WS_METHODS.pullRequestsRouting]: "pull-requests",

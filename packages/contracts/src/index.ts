@@ -74,3 +74,4 @@ export * from "./secretReference.ts";
 export * from "./settingsSecretValue.ts";
 export * from "./clientRpcPermissions.ts";
 export * from "./issues.ts";
+export * from "./githubBilling.ts";

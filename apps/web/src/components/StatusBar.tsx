@@ -1,14 +1,25 @@
 import { RegistryContext, useAtomValue } from "@effect/atom-react";
 import { useParams } from "@tanstack/react-router";
-import type { EnvironmentId, ServerProvider, ServerProviderUsageWindow } from "@t3tools/contracts";
+import { scopeProjectRef, scopeThreadRef } from "@t3tools/client-runtime/environment";
+import type {
+  EnvironmentId,
+  GitHubBillingProductUsage,
+  ServerProvider,
+  ServerProviderUsageWindow,
+  ThreadId,
+} from "@t3tools/contracts";
 import { CpuIcon, MemoryStickIcon } from "lucide-react";
 import { type ComponentProps, useContext, useEffect } from "react";
 
 import { cn } from "~/lib/utils";
 import { useNowMinute } from "../hooks/useNowMinute";
+import { getSourceControlPresentationForKind } from "../sourceControlPresentation";
+import { useProject, useQuietThreadShell } from "../state/entities";
 import { useEnvironments, usePrimaryEnvironmentId } from "../state/environments";
+import { useGitHubBillingUsage } from "../state/githubBilling";
 import { primaryServerProvidersAtom, serverEnvironment } from "../state/server";
 import { ProviderInstanceIcon } from "./chat/ProviderInstanceIcon";
+import { StatusBarConnectionHealth, StatusBarThreadActivity } from "./StatusBarActivity";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 
 const HOST_STATS_REFRESH_MS = 10_000;
@@ -35,6 +46,10 @@ export function StatusBar() {
     strict: false,
     select: (params) => (params as { environmentId?: EnvironmentId }).environmentId ?? null,
   });
+  const routeThreadId = useParams({
+    strict: false,
+    select: (params) => (params as { threadId?: ThreadId }).threadId ?? null,
+  });
   const { presentationById } = useEnvironments();
   const now = Date.parse(useNowMinute());
   const limited = providers.filter(
@@ -52,16 +67,25 @@ export function StatusBar() {
         {limited.map((provider) => (
           <ProviderLimit key={provider.instanceId} provider={provider} now={now} />
         ))}
+        {routeEnvironmentId !== null && routeThreadId !== null ? (
+          <GitHubUsage environmentId={routeEnvironmentId} threadId={routeThreadId} />
+        ) : null}
       </div>
       <div className="flex shrink-0 items-center gap-2">
+        <StatusBarThreadActivity />
         {primaryEnvironmentId !== null ? (
-          <HostStats environmentId={primaryEnvironmentId} label={null} />
+          <HostStats environmentId={primaryEnvironmentId} label={null} polls />
         ) : null}
         {remoteEnvironmentId !== null ? (
-          <HostStats
-            environmentId={remoteEnvironmentId}
-            label={presentationById.get(remoteEnvironmentId)?.entry.target.label ?? "Remote"}
-          />
+          <>
+            {/* The connection probe refreshes the remote stats, so they don't poll too. */}
+            <StatusBarConnectionHealth environmentId={remoteEnvironmentId} />
+            <HostStats
+              environmentId={remoteEnvironmentId}
+              label={presentationById.get(remoteEnvironmentId)?.entry.target.label ?? "Remote"}
+              polls={false}
+            />
+          </>
         ) : null}
       </div>
     </footer>
@@ -109,6 +133,107 @@ function ProviderLimit({ provider, now }: { provider: ServerProvider; now: numbe
   );
 }
 
+const GitHubMark = getSourceControlPresentationForKind("github").Icon;
+
+function formatDollars(amount: number, fractionDigits = 2): string {
+  return `$${amount.toFixed(fractionDigits)}`;
+}
+
+function formatQuantity({ grossQuantity, unitType }: GitHubBillingProductUsage): string {
+  const unit = unitType === "minutes" ? "min" : unitType;
+  return `${grossQuantity.toLocaleString(undefined, { maximumFractionDigits: 1 })} ${unit}`;
+}
+
+function formatMonth(year: number, month: number): string {
+  return new Date(year, month - 1).toLocaleString(undefined, { month: "long", year: "numeric" });
+}
+
+/** Billing for the GitHub owner of the open thread's project, read by that environment's `gh`. */
+function GitHubUsage({
+  environmentId,
+  threadId,
+}: {
+  environmentId: EnvironmentId;
+  threadId: ThreadId;
+}) {
+  const thread = useQuietThreadShell(scopeThreadRef(environmentId, threadId));
+  const project = useProject(
+    thread === null ? null : scopeProjectRef(environmentId, thread.projectId),
+  );
+  const identity = project?.repositoryIdentity;
+  const owner = identity?.provider === "github" ? (identity.owner ?? null) : null;
+  const { data } = useGitHubBillingUsage(environmentId, owner);
+  if (owner === null || data === null || data._tag !== "Ok") return null;
+  const { headline } = data;
+  return (
+    <Tooltip>
+      <TooltipTrigger render={<StatusItem />}>
+        <GitHubMark aria-label="GitHub" className="size-3" />
+        {headline._tag === "Budget" ? (
+          <BudgetHeadline spent={headline.spent} budget={headline.budget} />
+        ) : (
+          <>
+            <span className="text-foreground">
+              {Math.round(headline.minutes).toLocaleString()} min
+            </span>
+            {headline.spent > 0 ? <span>{formatDollars(headline.spent)}</span> : null}
+          </>
+        )}
+      </TooltipTrigger>
+      <TooltipPopup side="top">
+        <div className="flex min-w-52 flex-col gap-1.5">
+          <span className="flex items-baseline gap-2">
+            <span className="font-medium">{data.owner}</span>
+            <span className="text-muted-foreground">
+              {data.kind === "user" ? "Personal" : "Organization"} ·{" "}
+              {formatMonth(data.year, data.month)}
+            </span>
+          </span>
+          {data.products.length === 0 ? (
+            <span className="text-muted-foreground">No usage this month</span>
+          ) : null}
+          {data.products.map((product) => (
+            <span
+              key={`${product.product}:${product.unitType}`}
+              className="flex items-center gap-2 tabular-nums"
+            >
+              <span className="min-w-0 flex-1 truncate text-muted-foreground">
+                {product.product}
+              </span>
+              <span>{formatQuantity(product)}</span>
+              <span className="w-14 text-right">{formatDollars(product.netAmount)}</span>
+            </span>
+          ))}
+          {data.budgets.map((budget) => (
+            <span
+              key={`${budget.sku ?? "all"}:${budget.amount}`}
+              className="flex items-center gap-2 tabular-nums"
+            >
+              <span className="min-w-0 flex-1 truncate text-muted-foreground">
+                Budget · {budget.sku ?? "all products"}
+              </span>
+              <span>{formatDollars(budget.amount, 0)}</span>
+            </span>
+          ))}
+        </div>
+      </TooltipPopup>
+    </Tooltip>
+  );
+}
+
+function BudgetHeadline({ spent, budget }: { spent: number; budget: number }) {
+  const percent = Math.round((spent / budget) * 100);
+  return (
+    <>
+      <UsageMeter percent={percent} />
+      <span className={cn("font-medium", usageTextClass(percent))}>
+        {formatDollars(spent, 0)} / {formatDollars(budget, 0)}
+      </span>
+      <span>{percent}%</span>
+    </>
+  );
+}
+
 function usageTextClass(percent: number): string {
   return percent >= 90 ? "text-warning-foreground" : "text-foreground";
 }
@@ -147,18 +272,21 @@ function formatGigabytes(bytes: number): string {
 function HostStats({
   environmentId,
   label,
+  polls,
 }: {
   environmentId: EnvironmentId;
   label: string | null;
+  polls: boolean;
 }) {
   const registry = useContext(RegistryContext);
   const atom = serverEnvironment.hostResources({ environmentId, input: {} });
   const result = useAtomValue(atom);
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- polls the host's load while the bar is mounted
   useEffect(() => {
+    if (!polls) return;
     const timer = setInterval(() => registry.refresh(atom), HOST_STATS_REFRESH_MS);
     return () => clearInterval(timer);
-  }, [registry, atom]);
+  }, [registry, atom, polls]);
   if (result._tag !== "Success") return null;
   const { cpuUtilization, cpuCount, availableMemoryBytes, totalMemoryBytes } = result.value;
   const machine = label ?? "This machine";
