@@ -38,6 +38,8 @@ export function useThirtyDayProviderUsage(): ReadonlyMap<string, ProviderTotals>
 }
 
 export function formatUsageCost(costUsd: number): string {
+  if (costUsd >= 1e6) return `$${(costUsd / 1e6).toFixed(1)}M`;
+  if (costUsd >= 1e3) return `$${(costUsd / 1e3).toFixed(costUsd >= 1e4 ? 1 : 2)}K`;
   return costUsd >= 100 ? `$${Math.round(costUsd)}` : `$${costUsd.toFixed(2)}`;
 }
 
