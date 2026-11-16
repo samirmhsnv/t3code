@@ -243,7 +243,10 @@ function GitHubUsage({
     identity?.provider === "github"
       ? (ownerOfCanonicalKey(identity.origin?.canonicalKey) ?? identity.owner ?? null)
       : null;
-  const { data } = useGitHubBillingUsage(environmentId, owner);
+  // Billing belongs to the owner, not the machine: ask this client's own server, whose `gh`
+  // is signed in here, so threads on older remote servers still show usage.
+  const billingEnvironmentId = usePrimaryEnvironmentId() ?? environmentId;
+  const { data } = useGitHubBillingUsage(billingEnvironmentId, owner);
   if (owner === null || data === null) return null;
   if (data._tag !== "Ok") {
     return (
