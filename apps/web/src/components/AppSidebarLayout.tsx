@@ -1,3 +1,4 @@
+import { StatusBar } from "./StatusBar";
 import { useAtomValue } from "@effect/atom-react";
 import * as Schema from "effect/Schema";
 import {
@@ -409,6 +410,9 @@ function SidebarControl({ showSidebar }: { readonly showSidebar: boolean }) {
   );
 }
 
+// Matches the bar's h-6.
+const STATUS_BAR_HEIGHT = "1.5rem";
+
 export function AppSidebarLayout({
   children,
   showSidebar = true,
@@ -451,6 +455,8 @@ export function AppSidebarLayout({
       : {}
   ) as CSSProperties;
   const sidebarProviderStyle = {
+    "--app-status-bar-height": STATUS_BAR_HEIGHT,
+    height: `calc(100dvh - ${STATUS_BAR_HEIGHT})`,
     "--sidebar-width": `${clampThreadSidebarWidth(sidebarWidth, sidebarMinimumWidth, sidebarMaximumWidth)}px`,
     "--panel-animation-duration": `${panelAnimationDurationMs}ms`,
     ...windowControlsInsetStyle,
@@ -459,7 +465,7 @@ export function AppSidebarLayout({
   return (
     <PanelAnimationSuppressionProvider value={panelAnimationsSuppressed}>
       <SidebarProvider
-        className="h-dvh! min-h-0!"
+        className="min-h-0!"
         data-panel-animations={routePanelAnimationsActive ? "true" : "false"}
         storageKey="chat_thread_sidebar_open"
         style={sidebarProviderStyle}
@@ -495,6 +501,8 @@ export function AppSidebarLayout({
         <SidebarControl showSidebar={showSidebar} />
         {isElectron ? <HistorySwipeNavigation /> : null}
       </SidebarProvider>
+      {/* Spans the full window width, under the sidebar as well. */}
+      <StatusBar />
     </PanelAnimationSuppressionProvider>
   );
 }

@@ -8,7 +8,6 @@ import { useIssueList } from "../state/issues";
 import { openThreadLinkedPullRequestCountAtom } from "../state/pullRequests";
 import { readPullRequestListPreferences } from "./pullRequest/pullRequestListPreferences";
 import { useNavigateToMainApp } from "./sidebar/mainAppLocation";
-import { StatusBar } from "./StatusBar";
 
 type ContentTab = "chat" | "issues" | "pull-requests";
 
@@ -29,7 +28,7 @@ export function ContentTabs({ children }: { children: ReactNode }) {
 
   return (
     // The page below sizes itself to the window; here it fills what the strip leaves.
-    <div className="flex h-svh min-w-0 flex-1 flex-col md:h-dvh [&>[data-slot=sidebar-inset]]:h-auto [&>[data-slot=sidebar-inset]]:min-h-0 [&>[data-slot=sidebar-inset]]:flex-1">
+    <div className="flex h-full min-w-0 flex-1 flex-col [&>[data-slot=sidebar-inset]]:h-auto [&>[data-slot=sidebar-inset]]:min-h-0 [&>[data-slot=sidebar-inset]]:flex-1">
       <nav
         aria-label="Content"
         className={cn(
@@ -60,7 +59,6 @@ export function ContentTabs({ children }: { children: ReactNode }) {
         />
       </nav>
       {children}
-      <StatusBar />
     </div>
   );
 }
