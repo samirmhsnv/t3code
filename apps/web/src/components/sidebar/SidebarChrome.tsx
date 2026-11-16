@@ -1,17 +1,9 @@
-import { ArrowLeftIcon, ArrowRightIcon, SearchIcon, SettingsIcon } from "lucide-react";
+import { SearchIcon, SettingsIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { memo } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 
-import { useAtomValue } from "@effect/atom-react";
 import { useEnvironmentIdentificationMode } from "../../hooks/useSettings";
-import { shortcutLabelForCommand } from "../../keybindings";
-import {
-  navigateHistory,
-  useCanNavigateHistory,
-  type HistoryDirection,
-} from "../../navigationHistory";
-import { primaryServerKeybindingsAtom } from "../../state/server";
 import { cn } from "../../lib/utils";
 import { T3Wordmark } from "../T3Wordmark";
 import {
@@ -60,12 +52,6 @@ export const SidebarChromeHeader = memo(function SidebarChromeHeader({
       <div className="relative z-10 flex h-8 min-w-0 flex-1 flex-wrap content-start items-center gap-x-2 overflow-hidden py-0.5">
         <div className="flex shrink-0 items-center gap-1">
           <SidebarBrand onBackdrop={false} />
-          {isElectron ? (
-            <div className="hidden items-center md:flex">
-              <HistoryNavigationButton direction="back" onBackdrop={false} />
-              <HistoryNavigationButton direction="forward" onBackdrop={false} />
-            </div>
-          ) : null}
           <SettingsButton />
         </div>
         {pillLabel ? (
@@ -155,48 +141,6 @@ function SettingsButton() {
         <SettingsIcon className="size-3.5" />
       </TooltipTrigger>
       <TooltipPopup side="bottom">Settings</TooltipPopup>
-    </Tooltip>
-  );
-}
-
-function HistoryNavigationButton({
-  direction,
-  onBackdrop,
-}: {
-  direction: HistoryDirection;
-  onBackdrop: boolean;
-}) {
-  const keybindings = useAtomValue(primaryServerKeybindingsAtom);
-  const enabled = useCanNavigateHistory(direction);
-  const label = direction === "back" ? "Go back" : "Go forward";
-  const shortcutLabel = shortcutLabelForCommand(
-    keybindings,
-    direction === "back" ? "navigation.back" : "navigation.forward",
-  );
-  const Icon = direction === "back" ? ArrowLeftIcon : ArrowRightIcon;
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <Button
-            aria-label={label}
-            className={cn(
-              "[-webkit-app-region:no-drag]",
-              onBackdrop && "relative top-auto translate-y-0",
-            )}
-            disabled={!enabled}
-            onClick={() => navigateHistory(direction)}
-            size="icon-sm"
-            variant={onBackdrop ? "media-navigation" : "ghost"}
-          />
-        }
-      >
-        <Icon className="size-3.5" />
-      </TooltipTrigger>
-      <TooltipPopup side="bottom">
-        {label}
-        {shortcutLabel ? ` (${shortcutLabel})` : ""}
-      </TooltipPopup>
     </Tooltip>
   );
 }
