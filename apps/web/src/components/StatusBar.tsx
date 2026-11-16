@@ -20,6 +20,8 @@ import { useEnvironments, usePrimaryEnvironmentId } from "../state/environments"
 import { useGitHubBillingUsage } from "../state/githubBilling";
 import { primaryServerProvidersAtom, serverEnvironment } from "../state/server";
 import { ProviderInstanceIcon } from "./chat/ProviderInstanceIcon";
+import { githubOwnerFromPullRequests } from "./statusBarGitHub.logic";
+import { threadLinkedPullRequestEntriesAtom } from "../state/pullRequests";
 import {
   formatTokenCount,
   formatUsageCost,
@@ -239,10 +241,14 @@ function GitHubUsage({
     thread === null ? null : scopeProjectRef(environmentId, thread.projectId),
   );
   const identity = project?.repositoryIdentity;
+  const projectPullRequests = useAtomValue(threadLinkedPullRequestEntriesAtom).filter(
+    (entry) => entry.environmentId === environmentId && entry.projectId === thread?.projectId,
+  );
   const owner =
     identity?.provider === "github"
       ? (ownerOfCanonicalKey(identity.origin?.canonicalKey) ?? identity.owner ?? null)
-      : null;
+      : // A folder of repos has no repository of its own; its PRs say which owner it bills to.
+        githubOwnerFromPullRequests(thread?.pullRequests ?? [], projectPullRequests);
   // Billing belongs to the owner, not the machine: ask this client's own server, whose `gh`
   // is signed in here, so threads on older remote servers still show usage.
   const billingEnvironmentId = usePrimaryEnvironmentId() ?? environmentId;
