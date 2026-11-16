@@ -2,13 +2,17 @@ import { RegistryContext, useAtomValue } from "@effect/atom-react";
 import { useRouter } from "@tanstack/react-router";
 import { executeAtomQuery } from "@t3tools/client-runtime/state/runtime";
 import { isThreadWorking } from "@t3tools/client-runtime/state/thread-inbox";
-import type { EnvironmentId, ScopedThreadRef } from "@t3tools/contracts";
-import { BotIcon, CircleAlertIcon } from "lucide-react";
+import { scopeThreadRef, scopedThreadKey } from "@t3tools/client-runtime/environment";
+import type { EnvironmentId, ScopedThreadRef, ThreadId } from "@t3tools/contracts";
+import { BotIcon, CircleAlertIcon, MailIcon } from "lucide-react";
 import { Atom } from "effect/reactivity";
 import { type ComponentProps, useContext, useEffect, useState } from "react";
 
 import { cn } from "~/lib/utils";
 import { useEnvironments } from "../state/environments";
+import { useQuietThreadShells } from "../state/entities";
+import { useUiStateStore } from "../uiStateStore";
+import { hasUnseenCompletion, resolveThreadLastVisitedAt } from "./Sidebar.logic";
 import { serverEnvironment } from "../state/server";
 import { environmentThreadShells } from "../state/threads";
 import { buildThreadRouteParams } from "../threadRoutes";
@@ -64,48 +68,88 @@ function ActivityItem(props: ComponentProps<"button">) {
   );
 }
 
-/** Threads waiting on you, and agents working, across every machine. */
+function threadRef(thread: { environmentId: EnvironmentId; id: ThreadId }): ScopedThreadRef {
+  return { environmentId: thread.environmentId, threadId: thread.id };
+}
+
+// Finished runs the user has not opened since, newest first.
+function useUnreadThreads(): readonly ScopedThreadRef[] {
+  const shells = useQuietThreadShells();
+  const localVisits = useUiStateStore((state) => state.threadLastVisitedAtById);
+  return shells
+    .filter((thread) =>
+      hasUnseenCompletion({
+        ...thread,
+        lastVisitedAt: resolveThreadLastVisitedAt(
+          thread.lastVisitedAt,
+          localVisits[scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id))],
+        ),
+      }),
+    )
+    .toSorted((left, right) =>
+      (right.latestRun?.completedAt ?? "").localeCompare(left.latestRun?.completedAt ?? ""),
+    )
+    .map(threadRef);
+}
+
+/** Threads waiting on you, agents working, and unread results, across every machine. */
 export function StatusBarThreadActivity() {
   const router = useRouter();
   const { needsYou, nextNeedsYou, working } = useAtomValue(threadActivityAtom);
+  const unread = useUnreadThreads();
+  const open = (ref: ScopedThreadRef | null | undefined) => {
+    if (ref == null) return;
+    void router.navigate({ to: "/$environmentId/$threadId", params: buildThreadRouteParams(ref) });
+  };
   return (
     <>
-      {needsYou > 0 ? (
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <ActivityItem
-                className="text-warning-foreground"
-                onClick={() => {
-                  if (nextNeedsYou === null) return;
-                  void router.navigate({
-                    to: "/$environmentId/$threadId",
-                    params: buildThreadRouteParams(nextNeedsYou),
-                  });
-                }}
-              />
-            }
-          >
-            <CircleAlertIcon aria-hidden className="size-3" />
-            {needsYou}
-          </TooltipTrigger>
-          <TooltipPopup side="top">
-            {needsYou === 1 ? "1 thread needs" : `${needsYou} threads need`} your approval or input.
-            Click to open the next one.
-          </TooltipPopup>
-        </Tooltip>
-      ) : null}
-      {working > 0 ? (
-        <Tooltip>
-          <TooltipTrigger render={<ActivityItem className="cursor-default" />}>
-            <BotIcon aria-hidden className="size-3" />
-            {working}
-          </TooltipTrigger>
-          <TooltipPopup side="top">
-            {working === 1 ? "1 agent" : `${working} agents`} working
-          </TooltipPopup>
-        </Tooltip>
-      ) : null}
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <ActivityItem
+              className={cn(needsYou > 0 && "text-warning-foreground")}
+              disabled={needsYou === 0}
+              onClick={() => open(nextNeedsYou)}
+            />
+          }
+        >
+          <CircleAlertIcon aria-hidden className="size-3" />
+          {needsYou}
+        </TooltipTrigger>
+        <TooltipPopup side="top">
+          {needsYou === 0
+            ? "Nothing needs your approval or input"
+            : `${needsYou === 1 ? "1 thread needs" : `${needsYou} threads need`} your approval or input. Click to open the next one.`}
+        </TooltipPopup>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger render={<ActivityItem className="cursor-default" />}>
+          <BotIcon aria-hidden className="size-3" />
+          {working}
+        </TooltipTrigger>
+        <TooltipPopup side="top">
+          {working === 1 ? "1 agent" : `${working} agents`} working
+        </TooltipPopup>
+      </Tooltip>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <ActivityItem
+              className={cn(unread.length > 0 && "text-success-foreground")}
+              disabled={unread.length === 0}
+              onClick={() => open(unread[0])}
+            />
+          }
+        >
+          <MailIcon aria-hidden className="size-3" />
+          {unread.length}
+        </TooltipTrigger>
+        <TooltipPopup side="top">
+          {unread.length === 0
+            ? "No unread results"
+            : `${unread.length === 1 ? "1 thread has" : `${unread.length} threads have`} an unread result. Click to open the newest.`}
+        </TooltipPopup>
+      </Tooltip>
     </>
   );
 }

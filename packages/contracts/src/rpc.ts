@@ -40,7 +40,20 @@ import * as RpcMiddleware from "effect/rpc/RpcMiddleware";
 import { NonNegativeInt, TrimmedNonEmptyString } from "./baseSchemas.ts";
 import { SecretSourceCheckResult } from "./settingsSecretValue.ts";
 import { SecretReference } from "./secretReference.ts";
-import { IssueListInput, IssueListResult } from "./issues.ts";
+import {
+  IssueAddCommentInput,
+  IssueComment,
+  IssueCreateInput,
+  IssueCreateResult,
+  IssueDetail,
+  IssueGetInput,
+  IssueListInput,
+  IssueListResult,
+  IssueOptions,
+  IssueOptionsInput,
+  IssueTrackerError,
+  IssueUpdateInput,
+} from "./issues.ts";
 import { GitHubBillingUsageInput, GitHubBillingUsageResult } from "./githubBilling.ts";
 import {
   ProviderAuthCancelInput,
@@ -571,6 +584,11 @@ export const WS_METHODS = {
   pullRequestsList: "pullRequests.list",
   pullRequestsListStats: "pullRequests.listStats",
   issuesList: "issues.list",
+  issuesGet: "issues.get",
+  issuesOptions: "issues.options",
+  issuesUpdate: "issues.update",
+  issuesAddComment: "issues.addComment",
+  issuesCreate: "issues.create",
   sourceControlGithubBillingUsage: "sourceControl.githubBillingUsage",
   pullRequestsFilterOptions: "pullRequests.filterOptions",
   pullRequestsSummary: "pullRequests.summary",
@@ -1085,6 +1103,37 @@ const WsIssuesListRpc = Rpc.make(WS_METHODS.issuesList, {
   payload: IssueListInput,
   success: IssueListResult,
   error: EnvironmentAuthorizationError,
+});
+
+const IssueRpcError = Schema.Union([IssueTrackerError, EnvironmentAuthorizationError]);
+
+const WsIssuesGetRpc = Rpc.make(WS_METHODS.issuesGet, {
+  payload: IssueGetInput,
+  success: IssueDetail,
+  error: IssueRpcError,
+});
+
+const WsIssuesOptionsRpc = Rpc.make(WS_METHODS.issuesOptions, {
+  payload: IssueOptionsInput,
+  success: IssueOptions,
+  error: IssueRpcError,
+});
+
+const WsIssuesUpdateRpc = Rpc.make(WS_METHODS.issuesUpdate, {
+  payload: IssueUpdateInput,
+  error: IssueRpcError,
+});
+
+const WsIssuesAddCommentRpc = Rpc.make(WS_METHODS.issuesAddComment, {
+  payload: IssueAddCommentInput,
+  success: IssueComment,
+  error: IssueRpcError,
+});
+
+const WsIssuesCreateRpc = Rpc.make(WS_METHODS.issuesCreate, {
+  payload: IssueCreateInput,
+  success: IssueCreateResult,
+  error: IssueRpcError,
 });
 
 const WsSourceControlGithubBillingUsageRpc = Rpc.make(WS_METHODS.sourceControlGithubBillingUsage, {
@@ -2203,6 +2252,11 @@ export const WsRpcGroup = RpcGroup.make(
   WsPullRequestsListRpc,
   WsPullRequestsListStatsRpc,
   WsIssuesListRpc,
+  WsIssuesGetRpc,
+  WsIssuesOptionsRpc,
+  WsIssuesUpdateRpc,
+  WsIssuesAddCommentRpc,
+  WsIssuesCreateRpc,
   WsSourceControlGithubBillingUsageRpc,
   WsPullRequestsFilterOptionsRpc,
   WsPullRequestsSummaryRpc,

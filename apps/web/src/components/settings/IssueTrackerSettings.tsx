@@ -19,7 +19,8 @@ import { SettingsRow, SettingsSection } from "./settingsLayout";
 
 const KEY_HELP: Record<IssueSource, string> = {
   linear: "A personal API key from Linear: Settings > Security & access.",
-  deckbell: "A Deckbell API token (dkb_…) with the issues:read scope.",
+  deckbell:
+    "A Deckbell API token (dkb_…) with issues:write and comments:write to edit issues, or issues:read and comments:read to only read them.",
 };
 
 function IssueTrackerKeyRow({

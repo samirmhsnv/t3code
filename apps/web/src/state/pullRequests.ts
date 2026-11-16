@@ -551,18 +551,60 @@ const savedPullRequestSummariesAtom = Atom.make((get) => {
   return summaries;
 });
 
-/** Keys (see `threadLinkedPullRequestKey`) of every pull request a thread has linked. */
-export const threadLinkedPullRequestKeysAtom = Atom.make(
-  (get) => new Set(get(savedPullRequestSummariesAtom).keys()),
-);
+/**
+ * List rows for every pull request a thread linked, built from the threads' own snapshots so
+ * the thread-only PR view needs no forge search. The newest snapshot of each PR wins.
+ */
+export const threadLinkedPullRequestEntriesAtom = Atom.make((get) => {
+  const byKey = new Map<string, PullRequestListEntry & { readonly environmentId: EnvironmentId }>();
+  for (const thread of get(environmentThreadShells.threadShellsAtom)) {
+    for (const link of visibleThreadPullRequests(thread.pullRequests)) {
+      const snapshot = link.snapshot;
+      if (snapshot === null) continue;
+      const key = savedPullRequestKey(thread.environmentId, link);
+      const updatedAt = snapshot.updatedAt ?? snapshot.syncedAt;
+      const previous = byKey.get(key);
+      if (previous !== undefined && previous.updatedAt >= updatedAt) continue;
+      byKey.set(key, {
+        environmentId: thread.environmentId,
+        provider: (
+          sourceControlClients.findByChangeRequestUrl(link.url) ??
+          sourceControlClients.get(undefined)
+        ).kind,
+        host: link.host,
+        projectId: thread.projectId,
+        projectTitle: link.repository,
+        repository: link.repository,
+        number: link.number,
+        title: snapshot.title,
+        url: link.url,
+        author: snapshot.author ?? null,
+        headBranch: snapshot.headBranch,
+        baseBranch: snapshot.baseBranch,
+        state: snapshot.state,
+        isDraft: snapshot.isDraft,
+        mergeability: snapshot.mergeability ?? "unknown",
+        ...(snapshot.rebaseRequired === undefined
+          ? {}
+          : { rebaseRequired: snapshot.rebaseRequired }),
+        additions: snapshot.additions ?? 0,
+        deletions: snapshot.deletions ?? 0,
+        createdAt: link.linkedAt,
+        updatedAt,
+        viewerReviewRequested: false,
+        labels: [],
+        ...(snapshot.reviewDecision == null ? {} : { reviewDecision: snapshot.reviewDecision }),
+        ...(snapshot.checksState == null ? {} : { checksState: snapshot.checksState }),
+      });
+    }
+  }
+  return [...byKey.values()];
+});
 
-export function threadLinkedPullRequestKey(
-  entry: Pick<PullRequestRef, "host" | "repository" | "number"> & {
-    readonly environmentId: EnvironmentId;
-  },
-): string {
-  return savedPullRequestKey(entry.environmentId, entry);
-}
+/** Open pull requests the threads linked; the PRs tab shows this count. */
+export const openThreadLinkedPullRequestCountAtom = Atom.make(
+  (get) => get(threadLinkedPullRequestEntriesAtom).filter((entry) => entry.state === "open").length,
+);
 
 const savedPullRequestSummaryAtom = Atom.family((key: string) =>
   Atom.make((get) => get(savedPullRequestSummariesAtom).get(key) ?? null).pipe(

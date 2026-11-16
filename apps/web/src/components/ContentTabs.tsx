@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { cn } from "~/lib/utils";
 import { isElectron } from "../env";
 import { useIssueList } from "../state/issues";
-import { threadLinkedPullRequestKeysAtom } from "../state/pullRequests";
+import { openThreadLinkedPullRequestCountAtom } from "../state/pullRequests";
 import { readPullRequestListPreferences } from "./pullRequest/pullRequestListPreferences";
 import { useNavigateToMainApp } from "./sidebar/mainAppLocation";
 import { StatusBar } from "./StatusBar";
@@ -23,7 +23,7 @@ export function ContentTabs({ children }: { children: ReactNode }) {
   const pathname = useLocation({ select: (location) => location.pathname });
   const navigate = useNavigate();
   const navigateToMainApp = useNavigateToMainApp();
-  const pullRequestCount = useAtomValue(threadLinkedPullRequestKeysAtom).size;
+  const pullRequestCount = useAtomValue(openThreadLinkedPullRequestCountAtom);
   const issueCount = useIssueList().data?.issues.length ?? 0;
   const active = activeContentTab(pathname);
 

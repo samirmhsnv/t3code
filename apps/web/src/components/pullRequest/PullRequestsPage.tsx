@@ -47,6 +47,7 @@ import {
   reusePullRequestEntries,
   settlePullRequestOverrides,
   comparePullRequestsByRecency,
+  groupPullRequestsByInvolvement,
   largestPullRequestReadCount,
 } from "./pullRequestList.logic";
 import {
@@ -111,8 +112,7 @@ import {
   restoredPullRequestList,
   usePullRequestTurnRefreshes,
   useSharedPullRequestSummary,
-  threadLinkedPullRequestKey,
-  threadLinkedPullRequestKeysAtom,
+  threadLinkedPullRequestEntriesAtom,
   type EnvironmentQueryTarget,
 } from "~/state/pullRequests";
 import * as Schema from "effect/Schema";
@@ -992,7 +992,12 @@ export function PullRequestsPage() {
     false,
     Schema.Boolean,
   );
-  const threadLinkedKeys = useAtomValue(threadLinkedPullRequestKeysAtom);
+  const threadLinkedEntries = useAtomValue(threadLinkedPullRequestEntriesAtom);
+  // Threads already hold their PRs' snapshots, so this view never waits on a forge search.
+  const threadLinkedGroups = groupPullRequestsByInvolvement(
+    threadLinkedEntries.filter((entry) => search.state === "all" || entry.state === search.state),
+    viewers,
+  );
   const {
     hosts,
     displayGroups,
@@ -1003,16 +1008,7 @@ export function PullRequestsPage() {
   } = usePullRequestDisplayGroups({
     answered,
     host: search.host,
-    groups: showAllPullRequests
-      ? groups
-      : groups
-          .map((group) => ({
-            ...group,
-            entries: group.entries.filter((entry) =>
-              threadLinkedKeys.has(threadLinkedPullRequestKey(entry)),
-            ),
-          }))
-          .filter((group) => group.entries.length > 0),
+    groups: showAllPullRequests ? groups : threadLinkedGroups,
     statsByRow,
     overrides,
     state: search.state,
@@ -1270,15 +1266,15 @@ export function PullRequestsPage() {
           title="Pull requests unavailable"
           error="Update your T3 Code servers to browse pull requests."
         />
-      ) : firstLoad ? (
+      ) : firstLoad && showAllPullRequests ? (
         <PullRequestListGhost rows={7} caption="Loading pull requests…" />
-      ) : listError && shownCount === 0 ? (
+      ) : listError && shownCount === 0 && showAllPullRequests ? (
         <PullRequestsUnavailableState
           error={listError}
           refreshing={listQuery.isPending}
           onRetry={() => listQuery.refresh()}
         />
-      ) : carriedToNothing ? (
+      ) : carriedToNothing && showAllPullRequests ? (
         <PullRequestListGhost rows={7} />
       ) : shownCount === 0 ? (
         <PullRequestListEmptyState
@@ -1294,7 +1290,11 @@ export function PullRequestsPage() {
             search.host !== undefined
           }
           searching={typedQuery.length > 0 && (!querySettled || showingCarried)}
-          canLoadMore={listData?.truncated === true && (canContinue || pageSize < MAX_PAGE_SIZE)}
+          canLoadMore={
+            showAllPullRequests &&
+            listData?.truncated === true &&
+            (canContinue || pageSize < MAX_PAGE_SIZE)
+          }
           loadingMore={loadingMore}
           onClearQuery={() => updateListScope({ q: undefined })}
           onLoadMore={loadMore}
@@ -1317,7 +1317,7 @@ export function PullRequestsPage() {
         />
       )}
 
-      {listError && shownCount > 0 ? (
+      {listError && shownCount > 0 && showAllPullRequests ? (
         <div className="flex items-center justify-between gap-3 rounded-lg border border-warning/30 bg-warning-surface px-3 py-2 text-xs">
           <span>{listError} Showing the last pull requests loaded.</span>
           <Button size="xs" variant="outline" onClick={() => listQuery.refresh()}>
@@ -1325,7 +1325,7 @@ export function PullRequestsPage() {
           </Button>
         </div>
       ) : null}
-      {listData?.truncated && entries.length > 0 ? (
+      {showAllPullRequests && listData?.truncated && entries.length > 0 ? (
         <div className="flex justify-center py-3 text-xs text-muted-foreground">
           {loadingMore ? (
             <span className="flex items-center gap-2">
