@@ -1,6 +1,6 @@
 import { SessionPermissions } from "./SessionPermissions";
 import { useSearch } from "@tanstack/react-router";
-import { ChevronRightIcon, EllipsisIcon } from "lucide-react";
+import { ChevronRightIcon, EllipsisIcon, PencilIcon } from "lucide-react";
 import { useAtomValue } from "@effect/atom-react";
 import { type ReactNode, useState } from "react";
 import {
@@ -43,6 +43,7 @@ import { LocalEnvironmentSetting } from "./LocalEnvironmentSetting";
 import { searchableSetting } from "./settingsSearch";
 import { ConnectDeviceApprovalSettings } from "./ConnectDeviceApprovalSettings";
 import { EnvironmentIconMenu } from "./EnvironmentIconPicker";
+import { RenameEnvironmentDialog } from "./RenameEnvironmentDialog";
 import { FoldedSettingsSection } from "./FoldedSettingsSection";
 import { LinkedEnvironmentsSettings } from "./LinkedEnvironmentsSettings";
 import { usePeerLinkHosts } from "~/state/peerLinks";
@@ -71,7 +72,7 @@ import {
 } from "../ui/alert-dialog";
 import { Spinner } from "../ui/spinner";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
-import { Menu, MenuPopup, MenuTrigger } from "../ui/menu";
+import { Menu, MenuItem, MenuPopup, MenuTrigger } from "../ui/menu";
 import { Switch } from "../ui/switch";
 import { stackedThreadToast, toastManager } from "../ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
@@ -340,6 +341,7 @@ function ConnectionsSettingsContent({
   >(null);
   const [isRevokingOtherDesktopClients, setIsRevokingOtherDesktopClients] = useState(false);
   const [addBackendDialogOpen, setAddBackendDialogOpen] = useState(false);
+  const [renameAccessEnvironmentOpen, setRenameAccessEnvironmentOpen] = useState(false);
   const [routeTarget, setRouteTarget] = useState<EnvironmentPresentation | null>(null);
   const [savedBackendError, setSavedBackendError] = useState<string | null>(null);
   const handleAddBackendDialogOpenChange = (open: boolean) => {
@@ -1229,6 +1231,12 @@ function ConnectionsSettingsContent({
                     <EllipsisIcon className="size-3.5" />
                   </MenuTrigger>
                   <MenuPopup align="end">
+                    {accessEnvironment ? (
+                      <MenuItem onClick={() => setRenameAccessEnvironmentOpen(true)}>
+                        <PencilIcon />
+                        Rename…
+                      </MenuItem>
+                    ) : null}
                     <EnvironmentIconMenu
                       environmentId={accessEnvironmentId}
                       serverConfig={accessServerConfig}
@@ -1238,6 +1246,14 @@ function ConnectionsSettingsContent({
               ) : null
             }
           >
+            {accessEnvironment ? (
+              <RenameEnvironmentDialog
+                environmentId={accessEnvironmentId}
+                label={accessEnvironment.label}
+                open={renameAccessEnvironmentOpen}
+                onOpenChange={setRenameAccessEnvironmentOpen}
+              />
+            ) : null}
             {accessServerConfig?.managedPolicy ? (
               <div className="px-3 py-2 sm:px-4">
                 <ManagedByOrganization policy={accessServerConfig.managedPolicy} />

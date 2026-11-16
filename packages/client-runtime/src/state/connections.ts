@@ -5,6 +5,7 @@ import * as SubscriptionRef from "effect/SubscriptionRef";
 import { AsyncResult, Atom } from "effect/reactivity";
 
 import * as EnvironmentRegistry from "../connection/registry.ts";
+import { applyEnvironmentNames, EnvironmentNames } from "../connection/environmentNames.ts";
 import type { ConnectionCatalogEntry } from "../connection/catalog.ts";
 import { AVAILABLE_CONNECTION_STATE } from "../connection/model.ts";
 import * as EnvironmentSupervisor from "../connection/supervisor.ts";
@@ -47,12 +48,12 @@ export function createEnvironmentCatalogAtoms<R, E>(
   const serial = { mode: "serial" as const, key: () => "environment-catalog" };
   const catalogAtom = runtime.atom(
     Stream.unwrap(
-      EnvironmentRegistry.EnvironmentRegistry.pipe(
-        Effect.map((registry) =>
-          SubscriptionRef.changes(registry.entries).pipe(
-            Stream.map((entries) => ({
+      Effect.all([EnvironmentRegistry.EnvironmentRegistry, EnvironmentNames]).pipe(
+        Effect.map(([registry, names]) =>
+          Stream.zipLatest(SubscriptionRef.changes(registry.entries), names.changes).pipe(
+            Stream.map(([entries, environmentNames]) => ({
               isReady: true,
-              entries,
+              entries: applyEnvironmentNames(entries, environmentNames),
             })),
           ),
         ),
@@ -182,6 +183,13 @@ export function createEnvironmentCatalogAtoms<R, E>(
         Effect.flatMap((registry) => registry.reorderRoutes(input.environmentId, input.routeIds)),
       ),
   });
+  const setName = createRuntimeCommand(runtime, {
+    label: "environment-catalog:set-name",
+    scheduler: commandScheduler,
+    concurrency: serial,
+    execute: (input: { readonly environmentId: EnvironmentIdType; readonly name: string | null }) =>
+      EnvironmentNames.pipe(Effect.flatMap((names) => names.set(input.environmentId, input.name))),
+  });
   const retryNow = createRuntimeCommand(runtime, {
     label: "environment-catalog:retry-now",
     scheduler: commandScheduler,
@@ -208,5 +216,6 @@ export function createEnvironmentCatalogAtoms<R, E>(
     removeRelayEnvironments,
     retryNow,
     setEnabled,
+    setName,
   };
 }

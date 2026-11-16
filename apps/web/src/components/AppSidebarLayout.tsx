@@ -315,7 +315,7 @@ function SidebarControl({ showSidebar }: { readonly showSidebar: boolean }) {
   const router = useRouter();
   const usagePageOpen = useLocation({ select: (location) => location.pathname === "/usage" });
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
-  const { toggleSidebar } = useSidebar();
+  const { toggleSidebar, closePeek } = useSidebar();
   const mobileSidebarSheetMounted = useMobileSidebarSheetMounted();
   const isSidebarVisible = useSidebarVisibility();
   const shortcutLabel = shortcutLabelForCommand(keybindings, "sidebar.toggle", {
@@ -368,6 +368,9 @@ function SidebarControl({ showSidebar }: { readonly showSidebar: boolean }) {
     };
   }, [keybindings, router, showSidebar, toggleSidebar, usagePageOpen]);
 
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- router subscription; opening a thread from the peek dismisses it
+  useEffect(() => router.subscribe("onResolved", closePeek), [closePeek, router]);
+
   // The control lives as long as the shell, so it carries the shell's commands. Created
   // once so re-renders never re-register them.
   const [appShellCommandsRef] = useState(
@@ -393,6 +396,7 @@ function SidebarControl({ showSidebar }: { readonly showSidebar: boolean }) {
                 variant="ghost"
                 className="pointer-events-auto"
                 aria-label="Toggle main sidebar"
+                peekOnHover
               />
             }
           />

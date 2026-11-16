@@ -275,14 +275,18 @@ function SidebarThreadTooltip({
     .filter((instanceId) => instanceId !== modelInstanceId)
     .map((instanceId) => providerEntryByInstanceId.get(instanceId)?.displayName ?? instanceId);
   const supportsMultiplePullRequests = useSupportsMultiplePullRequests(thread.environmentId);
+  // Long-lived threads accumulate hundreds of merged PRs; the card lists the ones still in play.
+  const unmergedPullRequests = thread.pullRequests.filter(
+    (pullRequest) => pullRequest.snapshot?.state !== "merged",
+  );
   return (
     <ThreadHoverCardPopup side="right" align="start" sideOffset={4}>
       <ThreadHoverCard
         title={thread.title}
         footer={
-          supportsMultiplePullRequests && thread.pullRequests.length > 0 ? (
+          supportsMultiplePullRequests && unmergedPullRequests.length > 0 ? (
             <div className="border-t border-border/60 pt-2 pl-0.5 text-xs text-muted-foreground">
-              <ThreadPullRequestsMiniList pullRequests={thread.pullRequests} />
+              <ThreadPullRequestsMiniList pullRequests={unmergedPullRequests} />
             </div>
           ) : null
         }

@@ -22,7 +22,7 @@ import { ProviderInstanceIcon } from "./chat/ProviderInstanceIcon";
 import { StatusBarConnectionHealth, StatusBarThreadActivity } from "./StatusBarActivity";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 
-const HOST_STATS_REFRESH_MS = 10_000;
+const HOST_STATS_REFRESH_MS = 3_000;
 
 /** The limit the bar shows for a provider: its weekly window, else its first. */
 function headlineWindow(provider: ServerProvider): ServerProviderUsageWindow | null {

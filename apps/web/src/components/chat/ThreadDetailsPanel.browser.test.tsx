@@ -127,7 +127,6 @@ function setup(input: {
 
 function Panel({ fixture }: { fixture: ReturnType<typeof setup> }) {
   const noop = () => {};
-  const scriptResult = async () => ({ ok: true }) as never;
   return (
     <ChatCanvasContext
       value={{
@@ -152,26 +151,15 @@ function Panel({ fixture }: { fixture: ReturnType<typeof setup> }) {
         worktreePath={state.folder}
         isServerThread
         activeProjectName={state.workspaceRoot === SCRATCH_ROOT ? "No project" : "plain"}
-        activeProjectScripts={undefined}
-        preferredScriptId={null}
-        keybindings={[]}
-        availableEditors={[]}
-        showOpenInPicker={false}
-        openInShortcutEnabled={false}
         gitCwd={state.folder}
         workspaceMutationId={null}
         isGitRepo={false}
         envLocked
-        availableEnvironments={[]}
         onEnvModeChange={noop}
         envMode="local"
         startFromOrigin={false}
         onStartFromOriginChange={noop}
         onComposerFocusRequest={noop}
-        onRunProjectScript={noop}
-        onAddProjectScript={scriptResult}
-        onUpdateProjectScript={scriptResult}
-        onDeleteProjectScript={scriptResult}
         usage={{} as never}
       />
     </ChatCanvasContext>
@@ -198,7 +186,7 @@ it("shows a linked pull request in a folder that is not a git repository", async
     pullRequests: [linkedPullRequest],
   });
   await using _screen = await render(<Panel fixture={fixture} />);
-  await expect.element(page.getByRole("region", { name: "Workspace" })).toBeVisible();
+  await expect.element(page.getByRole("region", { name: "Thread details" })).toBeVisible();
   await expect.element(page.getByText("#27513")).toBeVisible();
   await expect.element(page.getByRole("button", { name: "Initialize Git" })).toBeVisible();
 });
@@ -210,7 +198,7 @@ it("offers no Initialize Git before the server config says where No project live
     configLoaded: false,
   });
   await using _screen = await render(<Panel fixture={fixture} />);
-  await expect.element(page.getByRole("region", { name: "Workspace" })).toBeVisible();
+  await expect.element(page.getByRole("region", { name: "Thread details" })).toBeVisible();
   await expect
     .element(page.getByRole("button", { name: "Initialize Git" }))
     .not.toBeInTheDocument();

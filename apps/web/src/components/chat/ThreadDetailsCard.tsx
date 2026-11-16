@@ -26,6 +26,7 @@ export function ThreadDetailsCard({
   contentKey,
   onContextMenu,
   children,
+  secondary,
 }: {
   threadRef: ScopedThreadRef;
   anchor: RefObject<Element | null>;
@@ -34,6 +35,8 @@ export function ThreadDetailsCard({
   contentKey: string;
   onContextMenu?: MouseEventHandler<HTMLDivElement>;
   children: (density: "full" | "compact" | "essential") => ReactNode;
+  /** A second card below the first, shown at full density while it renders a section. */
+  secondary?: ReactNode;
 }) {
   const detailsArea = workspaceAreaProps("details", 3, "Thread details");
   const canvas = useChatCanvas();
@@ -68,6 +71,7 @@ export function ThreadDetailsCard({
       useRightPanelStore.getState().setThreadPanelOpen(threadRef, "popover", false);
   }, [mode, popoverOpen, threadRef]);
   const [contentElement, setContentElement] = useState<HTMLDivElement | null>(null);
+  const [secondaryElement, setSecondaryElement] = useState<HTMLDivElement | null>(null);
   const { environmentId, threadId } = threadRef;
   // Re-measures when the density or measurement key changes, so each density's
   // height is measured once it renders.
@@ -75,13 +79,18 @@ export function ThreadDetailsCard({
   useLayoutEffect(() => {
     const element = contentElement;
     if (!element || density === "essential") return;
+    // A hidden card (offsetParent null) has no height to report.
+    const outerHeight = (content: HTMLElement | null) => {
+      const frame = content?.closest<HTMLElement>("[data-thread-details-card]");
+      if (!content || !frame || frame.offsetParent === null) return 0;
+      return content.offsetHeight + frame.offsetHeight - frame.clientHeight;
+    };
     const measure = () => {
-      const frame = element.closest<HTMLElement>("[data-thread-details-card]");
-      const next = element.offsetHeight + (frame ? frame.offsetHeight - frame.clientHeight : 0);
-      // PR lists, servers, lineage, side chats and automations scroll as they grow. Counting them
-      // toward density would hide the section and workspace controls when the user asks to see more.
+      const next = outerHeight(element);
+      // PR lists, servers and automations scroll as they grow. Counting them toward density
+      // would hide the section controls when the user asks to see more.
       const lists = element.querySelectorAll<HTMLElement>(
-        "[data-thread-relationships-panel], [data-thread-side-chats-panel], [data-thread-details-pr-list], [data-thread-automations-panel], [data-thread-details-server-overflow]",
+        "[data-thread-details-pr-list], [data-thread-automations-panel], [data-thread-details-server-overflow]",
       );
       const fittingHeight =
         next - Array.from(lists).reduce((sum, list) => sum + list.offsetHeight, 0);
@@ -94,17 +103,20 @@ export function ThreadDetailsCard({
       // Only the laid-out DOM knows the full card height, and the canvas keeps preview
       // frames clear of it, so it is reported from this measure effect.
       if (density === "full" && cardWidth !== undefined) {
+        const secondaryHeight = outerHeight(secondaryElement);
         measureDetailsCard?.({
           threadRef: { environmentId, threadId },
           width: cardWidth,
-          fullContentHeight: next,
+          fullContentHeight:
+            next + (secondaryHeight > 0 ? secondaryHeight + THREAD_DETAILS_CARD_GAP : 0),
         });
       }
     };
     measure();
-    return observeResize(element, measure);
+    return observeResize(secondaryElement ? [element, secondaryElement] : element, measure);
   }, [
     contentElement,
+    secondaryElement,
     density,
     measurementKey,
     cardWidth,
@@ -112,20 +124,34 @@ export function ThreadDetailsCard({
     environmentId,
     threadId,
   ]);
+  const cardClassName =
+    "dropdown-glass isolate contain-paint grid min-h-0 grid-rows-[minmax(0,1fr)] overflow-hidden rounded-2xl";
   const card = (
     <div
       className={cn(
-        "dropdown-glass isolate contain-paint grid max-h-full grid-rows-[minmax(0,1fr)] overflow-hidden rounded-2xl",
+        "flex max-h-full flex-col gap-3",
         mode === "popover" &&
           "max-h-[min(calc(100dvh-6.5rem),calc(var(--available-height,100dvh)-1rem))]",
       )}
       style={placement ? { maxHeight: height } : undefined}
       onContextMenu={onContextMenu}
-      data-thread-details-card
     >
-      <ScrollArea scrollFade className="min-h-0">
-        <div ref={setContentElement}>{children(density)}</div>
-      </ScrollArea>
+      <div className={cardClassName} data-thread-details-card>
+        <ScrollArea scrollFade className="min-h-0">
+          <div ref={setContentElement}>{children(density)}</div>
+        </ScrollArea>
+      </div>
+      {secondary && density === "full" ? (
+        // Shrinks before the first card, so its scrolling lists give way to the controls.
+        <div
+          className={cn(cardClassName, "shrink-[4] [&:not(:has(section))]:hidden")}
+          data-thread-details-card
+        >
+          <ScrollArea scrollFade className="min-h-0">
+            <div ref={setSecondaryElement}>{secondary}</div>
+          </ScrollArea>
+        </div>
+      ) : null}
     </div>
   );
   return (

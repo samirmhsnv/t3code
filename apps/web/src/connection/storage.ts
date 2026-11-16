@@ -23,6 +23,7 @@ import {
   ConnectionTransientError,
   ConnectionBlockedError,
   CredentialStore,
+  EnvironmentNames,
   ProfileStore,
   PullRequestRoutingPermissions,
   StoredPullRequestRoutingPermission,
@@ -694,6 +695,65 @@ export function makeBrowserPullRequestRoutingPermissions(
   });
 }
 
+const ENVIRONMENT_NAMES_KEY = "t3code:environment-names";
+const ENVIRONMENT_NAMES_CHANGED = "t3code:environment-names-changed";
+const EnvironmentNameRecord = Schema.Record(EnvironmentId, Schema.String);
+const decodeEnvironmentNames = Schema.decodeUnknownOption(
+  Schema.fromJsonString(EnvironmentNameRecord),
+);
+const encodeEnvironmentNames = Schema.encodeSync(Schema.fromJsonString(EnvironmentNameRecord));
+
+export function makeBrowserEnvironmentNames(
+  browser: Pick<Window, "localStorage"> & EventTarget = window,
+) {
+  const readAll = (): Record<EnvironmentId, string> => {
+    try {
+      const raw = browser.localStorage.getItem(ENVIRONMENT_NAMES_KEY);
+      return raw === null ? {} : Option.getOrElse(decodeEnvironmentNames(raw), () => ({}));
+    } catch {
+      return {};
+    }
+  };
+  const toMap = (record: Record<EnvironmentId, string>) =>
+    new Map(Object.entries(record) as Array<[EnvironmentId, string]>);
+  return EnvironmentNames.of({
+    changes: Stream.callback<ReadonlyMap<EnvironmentId, string>>((queue) =>
+      Effect.acquireRelease(
+        Effect.sync(() => {
+          const listener = (event: Event) => {
+            if (event.type === "storage") {
+              const key = (event as StorageEvent).key;
+              if (key !== null && key !== ENVIRONMENT_NAMES_KEY) return;
+            }
+            Queue.offerUnsafe(queue, toMap(readAll()));
+          };
+          browser.addEventListener("storage", listener);
+          browser.addEventListener(ENVIRONMENT_NAMES_CHANGED, listener);
+          Queue.offerUnsafe(queue, toMap(readAll()));
+          return listener;
+        }),
+        (listener) =>
+          Effect.sync(() => {
+            browser.removeEventListener("storage", listener);
+            browser.removeEventListener(ENVIRONMENT_NAMES_CHANGED, listener);
+          }),
+      ).pipe(Effect.asVoid),
+    ),
+    set: Effect.fn("EnvironmentNames.set")(function (environmentId, name) {
+      return Effect.try({
+        try: () => {
+          const { [environmentId]: _previous, ...rest } = readAll();
+          const trimmed = name?.trim() ?? "";
+          const next = trimmed === "" ? rest : { ...rest, [environmentId]: trimmed };
+          browser.localStorage.setItem(ENVIRONMENT_NAMES_KEY, encodeEnvironmentNames(next));
+          browser.dispatchEvent(new Event(ENVIRONMENT_NAMES_CHANGED));
+        },
+        catch: (cause) => catalogError("save environment names in", cause),
+      });
+    }),
+  });
+}
+
 // MessageChannel yields without nested-timer clamping or background throttling.
 const yieldToBrowserTask = Effect.callback<void>((resume) => {
   const { port1, port2 } = new MessageChannel();
@@ -719,6 +779,7 @@ export const layer = Layer.effectContext(
     );
     const catalog = yield* makeCatalogStore(makeCatalogBackend(database));
     const pullRequestRoutingPermissions = makeBrowserPullRequestRoutingPermissions();
+    const environmentNames = makeBrowserEnvironmentNames();
     // Remembers each thread row's encoding, so a save only encodes rows that changed.
     const encodeStoredShellSnapshot = makeStoredShellSnapshotEncoder({
       yieldToHost: yieldToBrowserTask,
@@ -1108,6 +1169,7 @@ export const layer = Layer.effectContext(
 
     return Context.make(Persistence.ConnectionTargetStore, targetStore).pipe(
       Context.add(PullRequestRoutingPermissions, pullRequestRoutingPermissions),
+      Context.add(EnvironmentNames, environmentNames),
       Context.add(Persistence.ConnectionRegistrationStore, registrationStore),
       Context.add(ProfileStore.ConnectionProfileStore, profileStore),
       Context.add(CredentialStore.ConnectionCredentialStore, credentialStore),

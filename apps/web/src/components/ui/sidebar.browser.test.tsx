@@ -75,6 +75,45 @@ describe("Sidebar", () => {
   });
 });
 
+it("peeks a collapsed desktop sidebar while the trigger or panel is hovered", async () => {
+  await page.viewport(1280, 800);
+  await using screen = await render(
+    <SidebarProvider defaultOpen={false}>
+      <Sidebar collapsible="offcanvas">
+        <button type="button">Peeked item</button>
+      </Sidebar>
+      <main className="ml-80 p-8">
+        <SidebarTrigger peekOnHover />
+      </main>
+    </SidebarProvider>,
+    { router: false /* no routes involved */ },
+  );
+  const sidebar = screen.container.querySelector<HTMLElement>('[data-slot="sidebar"]')!;
+  const trigger = screen.getByRole("button", { name: "Toggle Sidebar" });
+  expect(sidebar.inert).toBe(true);
+
+  await userEvent.hover(trigger);
+  await vi.waitFor(() => expect(sidebar.dataset.peek).toBe("true"));
+  expect(sidebar.inert).toBe(false);
+  // Moving from the trigger onto the panel keeps it open past the close delay.
+  await userEvent.hover(screen.getByRole("button", { name: "Peeked item" }));
+  await expect.element(trigger).toHaveAttribute("aria-pressed", "false");
+  expect(sidebar.dataset.peek).toBe("true");
+
+  await userEvent.unhover(screen.getByRole("button", { name: "Peeked item" }));
+  await vi.waitFor(() => expect(sidebar.dataset.peek).toBeUndefined());
+  expect(sidebar.inert).toBe(true);
+
+  await userEvent.hover(trigger);
+  await vi.waitFor(() => expect(sidebar.dataset.peek).toBe("true"));
+  await userEvent.keyboard("{Escape}");
+  await vi.waitFor(() => expect(sidebar.dataset.peek).toBeUndefined());
+
+  await userEvent.click(trigger);
+  await expect.element(trigger).toHaveAttribute("aria-pressed", "true");
+  expect(sidebar.dataset.peek).toBeUndefined();
+});
+
 it("restores collapsed and expanded desktop state after remounting", async () => {
   await page.viewport(1280, 800);
   const storageKey = "sidebar_persistence_test";

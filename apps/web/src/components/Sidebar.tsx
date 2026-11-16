@@ -194,6 +194,7 @@ import {
   sortPinnedThreadsForSidebar,
   sortThreadsForSidebar,
   sortWorkingThreadsBySend,
+  isThreadInPlay,
   useSnoozeWakeClock,
   threadShortcutContext,
   useThreadJumpHintsVisible,
@@ -304,6 +305,8 @@ const sidebarProviderEntriesAtom = Atom.make((get) => {
 
 const EMPTY_PROVIDER_ENTRIES: ReadonlyMap<string, SidebarProviderEntry> = new Map();
 const EMPTY_THREADS: readonly EnvironmentThreadShell[] = [];
+// Tree parent for the in-play rows above the project folders.
+const IN_PLAY_ROW_PARENT = "shelf:in-play";
 
 const SETTLED_TAIL_INITIAL_COUNT = 10;
 const SETTLED_TAIL_PAGE_COUNT = 25;
@@ -444,6 +447,7 @@ function useSidebarThreads(input: {
   );
   // Shared with the old per-project sidebar, so folders keep their open state.
   const projectExpandedById = useUiStateStore((store) => store.projectExpandedById);
+  const threadLastVisitedAtById = useUiStateStore((store) => store.threadLastVisitedAtById);
   const setProjectExpanded = useUiStateStore((store) => store.setProjectExpanded);
   const [settledTail, setSettledTail] = useState({
     scopeKey: projectScopeKey,
@@ -505,12 +509,23 @@ function useSidebarThreads(input: {
   const visibleWorkingThreads = workingShelfExpanded
     ? workingThreads
     : routeThreadOnly(workingThreads, routeRowThreadKey);
+  // Threads in play (working, waiting on you, or finished unread) sit above the folders.
+  const inPlayThreads =
+    folderGroups === null
+      ? EMPTY_THREADS
+      : activeThreads.filter((thread) =>
+          isThreadInPlay(thread, threadLastVisitedAtById[threadShellKey(thread)]),
+        );
+  const inPlayKeys = new Set(inPlayThreads.map(threadShellKey));
   const projectFolders =
     folderGroups === null
       ? null
       : groupSidebarThreadsByProject(
           folderGroups,
-          [...activeThreads, ...settledThreads],
+          [
+            ...activeThreads.filter((thread) => !inPlayKeys.has(threadShellKey(thread))),
+            ...settledThreads,
+          ],
           keepEmpty,
         ).map((folder) => {
           const collapsed = !resolveProjectExpanded(
@@ -531,6 +546,7 @@ function useSidebarThreads(input: {
         });
   const orderedThreads = [
     ...pinnedThreads,
+    ...inPlayThreads,
     ...(projectFolders === null
       ? activeThreads
       : projectFolders.flatMap((folder) => folder.threads)),
@@ -575,6 +591,7 @@ function useSidebarThreads(input: {
     workingShelfExpanded,
     toggleWorkingShelf: () => setWorkingShelfExpanded((value) => !value),
     projectFolders,
+    inPlayThreads,
     toggleProjectFolder: (group: SidebarProjectSnapshot) => {
       const keys = sidebarFolderExpansionKeys(group);
       setProjectExpanded(keys, !resolveProjectExpanded(projectExpandedById, keys));
@@ -1242,6 +1259,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     workingShelfExpanded,
     toggleWorkingShelf,
     projectFolders,
+    inPlayThreads,
     toggleProjectFolder,
     renderedSettledThreads,
     visibleSnoozedThreads,
@@ -3233,6 +3251,9 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                           continue;
                         }
                         if (projectFolders !== null && item.marker === "active-placeholder") {
+                          for (const thread of inPlayThreads) {
+                            items.push(renderThreadRow(thread, "active", IN_PLAY_ROW_PARENT));
+                          }
                           for (const folder of projectFolders) {
                             items.push(
                               <SidebarProjectFolderHeader

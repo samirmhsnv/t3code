@@ -11,6 +11,7 @@ import {
   deleteSelectedThreadEntries,
   getFallbackThreadIdAfterDelete,
   hasUnseenCompletion,
+  isThreadInPlay,
   orderItemsByPreferredIds,
   pinOrderKeyBetween,
   resolveSidebarSweepKeys,
@@ -316,6 +317,17 @@ describe("resolveSidebarRowStatus", () => {
     expect(hasUnseenCompletion(opened)).toBe(false);
     // A runtime failure without a failed run has no date, so a visit cannot settle it.
     expect(resolveSidebarRowStatus({ ...opened, latestRun: null })).toBe("failed");
+  });
+
+  it("keeps a thread in play until its finished run is seen or while it needs the user", () => {
+    const finished = { ...failed, latestRun: { ...makeLatestRun(), status: "completed" as const } };
+    const seenBefore = { ...finished, lastVisitedAt: "2026-03-09T10:01:00.000Z" };
+    expect(isThreadInPlay(seenBefore, undefined)).toBe(true);
+    expect(
+      isThreadInPlay({ ...seenBefore, lastVisitedAt: "2026-03-09T10:06:00.000Z" }, undefined),
+    ).toBe(false);
+    const seenAfter = { ...finished, lastVisitedAt: "2026-03-09T10:06:00.000Z" };
+    expect(isThreadInPlay({ ...seenAfter, hasPendingApprovals: true }, undefined)).toBe(true);
   });
 
   it("does not show a stopped run as an unseen completion", () => {

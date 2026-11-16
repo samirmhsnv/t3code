@@ -14,7 +14,7 @@ import { environmentThreadShells } from "../state/threads";
 import { buildThreadRouteParams } from "../threadRoutes";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 
-const CONNECTION_PROBE_MS = 10_000;
+const CONNECTION_PROBE_MS = 3_000;
 const SLOW_CONNECTION_MS = 300;
 
 interface ThreadActivity {

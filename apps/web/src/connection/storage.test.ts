@@ -285,3 +285,32 @@ describe("browser GitHub routing permissions", () => {
     }),
   );
 });
+
+describe("browser environment names", () => {
+  it.effect("saves, shares, and clears this device's names", () =>
+    Effect.gen(function* () {
+      const values = new Map<string, string>();
+      const localStorage = {
+        getItem: (key: string) => values.get(key) ?? null,
+        setItem: (key: string, value: string) => {
+          values.set(key, value);
+        },
+      } as Storage;
+      const first = ConnectionStorage.makeBrowserEnvironmentNames(
+        Object.assign(new EventTarget(), { localStorage }),
+      );
+      const second = ConnectionStorage.makeBrowserEnvironmentNames(
+        Object.assign(new EventTarget(), { localStorage }),
+      );
+      const devbox = EnvironmentId.make("devbox");
+      const names = () => Stream.runHead(second.changes).pipe(Effect.map(Option.getOrThrow));
+
+      yield* first.set(devbox, "  devbox ");
+      expect(yield* names()).toEqual(new Map([[devbox, "devbox"]]));
+      yield* first.set(devbox, " ");
+      expect(yield* names()).toEqual(new Map());
+      values.set("t3code:environment-names", "{not-json");
+      expect(yield* names()).toEqual(new Map());
+    }),
+  );
+});

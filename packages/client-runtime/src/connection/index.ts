@@ -4,6 +4,7 @@ export * as Connectivity from "./connectivity.ts";
 export * as CredentialStore from "./credentialStore.ts";
 export { type ConnectionDriverProgress, type EnvironmentConnectionLease } from "./driver.ts";
 export * from "./errors.ts";
+export * from "./environmentNames.ts";
 export * from "./pullRequestRoutingPermissions.ts";
 export * from "./hostFreeze.ts";
 export * as Connection from "./layer.ts";

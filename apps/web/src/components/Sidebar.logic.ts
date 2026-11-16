@@ -1,3 +1,4 @@
+import { isThreadWorking } from "@t3tools/client-runtime/state/thread-inbox";
 import type { EnvironmentServerConfig } from "@t3tools/client-runtime/connection";
 import { scopeThreadRef, scopedThreadKey } from "@t3tools/client-runtime/environment";
 import { resolveThreadWorkingStartedAt } from "@t3tools/client-runtime/state/models";
@@ -770,6 +771,23 @@ export function resolveThreadLastVisitedAt(
   // servers.
   if (serverLastVisitedAt === undefined) return localLastVisitedAt;
   return serverLastVisitedAt ?? undefined;
+}
+
+/** Working, waiting on the user, or finished since the user last looked. */
+export function isThreadInPlay(
+  thread: ThreadStatusInput &
+    Parameters<typeof isThreadWorking>[0] & {
+      readonly lastVisitedAt?: string | null | undefined;
+    },
+  localLastVisitedAt: string | undefined,
+): boolean {
+  if (thread.hasPendingApprovals || thread.hasPendingUserInput) return true;
+  if (thread.pendingSubagentRequest != null) return true;
+  if (isThreadWorking(thread)) return true;
+  return hasUnseenCompletion({
+    ...thread,
+    lastVisitedAt: resolveThreadLastVisitedAt(thread.lastVisitedAt, localLastVisitedAt),
+  });
 }
 
 export function hasUnseenCompletion(thread: ThreadStatusInput): boolean {

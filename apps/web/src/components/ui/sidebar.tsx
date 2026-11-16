@@ -32,6 +32,7 @@ const SIDEBAR_WIDTH_MOBILE = "calc(100vw - var(--spacing) * 3)";
 const SIDEBAR_WIDTH_ICON = "3rem";
 const SIDEBAR_RESIZE_DEFAULT_MIN_WIDTH = 16 * 16;
 const SIDEBAR_TITLEBAR_CONTROL_SIZE = "max-sm:[--workspace-titlebar-control-size:--spacing(8)]";
+const SIDEBAR_PEEK_CLOSE_DELAY_MS = 250;
 
 type SidebarContextProps = {
   state: ResponsiveSidebarState;
@@ -43,6 +44,11 @@ type SidebarContextProps = {
   setOpenMobile: (open: boolean) => void;
   isMobile: boolean;
   toggleSidebar: () => void;
+  /** A collapsed desktop sidebar shown over the content while the pointer hovers it or its trigger. */
+  peek: boolean;
+  openPeek: () => void;
+  closePeek: () => void;
+  schedulePeekClose: () => void;
   /** Runs before the desktop sidebar collapses. */
   onCollapse: (listener: () => void) => () => void;
 };
@@ -138,6 +144,7 @@ function moveFocusOutOfCollapsingSidebar() {
 interface SidebarOpenState {
   readonly open: boolean;
   readonly openMobile: boolean;
+  readonly peek: boolean;
 }
 
 /** Per-provider open state, kept outside React so shortcuts can toggle it at event time. */
@@ -145,6 +152,12 @@ function createSidebarOpenStore(defaultOpen: boolean, storageKey: string | undef
   let state: SidebarOpenState = {
     open: readStoredSidebarOpen(storageKey) ?? defaultOpen,
     openMobile: false,
+    peek: false,
+  };
+  let peekCloseTimer: ReturnType<typeof setTimeout> | null = null;
+  const cancelPeekClose = () => {
+    if (peekCloseTimer !== null) clearTimeout(peekCloseTimer);
+    peekCloseTimer = null;
   };
   const listeners = new Set<() => void>();
   const collapseListeners = new Set<() => void>();
@@ -152,7 +165,15 @@ function createSidebarOpenStore(defaultOpen: boolean, storageKey: string | undef
     state = next;
     for (const listener of listeners) listener();
   };
+  const closePeek = () => {
+    cancelPeekClose();
+    if (!state.peek) return;
+    moveFocusOutOfCollapsingSidebar();
+    publish({ ...state, peek: false });
+  };
   const setOpen = (open: boolean) => {
+    cancelPeekClose();
+    if (state.peek) publish({ ...state, peek: false });
     if (!open && state.open) {
       for (const listener of collapseListeners) listener();
       moveFocusOutOfCollapsingSidebar();
@@ -176,6 +197,15 @@ function createSidebarOpenStore(defaultOpen: boolean, storageKey: string | undef
     getSnapshot: () => state,
     setOpen,
     setOpenMobile,
+    openPeek: () => {
+      cancelPeekClose();
+      if (!state.open && !state.peek && !isMobileViewport()) publish({ ...state, peek: true });
+    },
+    closePeek,
+    schedulePeekClose: () => {
+      cancelPeekClose();
+      if (state.peek) peekCloseTimer = setTimeout(closePeek, SIDEBAR_PEEK_CLOSE_DELAY_MS);
+    },
     toggle: () => (isMobileViewport() ? setOpenMobile(!state.openMobile) : setOpen(!state.open)),
     onCollapse: (listener: () => void) => {
       collapseListeners.add(listener);
@@ -199,7 +229,7 @@ function SidebarProvider({
 }) {
   const isMobile = useMediaQuery(SIDEBAR_MOBILE_QUERY);
   const [store] = React.useState(() => createSidebarOpenStore(defaultOpen, storageKey));
-  const { open, openMobile } = React.useSyncExternalStore(
+  const { open, openMobile, peek } = React.useSyncExternalStore(
     store.subscribe,
     store.getSnapshot,
     store.getSnapshot,
@@ -215,6 +245,17 @@ function SidebarProvider({
 
   const state = resolveSidebarState({ isMobile, open, openMobile });
 
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- window keydown listener that dismisses the peek on Escape
+  React.useEffect(() => {
+    if (!peek) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      store.closePeek();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [peek, store]);
+
   const contextValue: SidebarContextProps = {
     isMobile,
     open,
@@ -225,6 +266,10 @@ function SidebarProvider({
     setOpenMobile: store.setOpenMobile,
     state,
     toggleSidebar: store.toggle,
+    peek: peek && !isMobile,
+    openPeek: store.openPeek,
+    closePeek: store.closePeek,
+    schedulePeekClose: store.schedulePeekClose,
     onCollapse: store.onCollapse,
   };
 
@@ -292,7 +337,16 @@ function Sidebar({
   collapsible?: "offcanvas" | "icon" | "none";
   resizable?: boolean | SidebarResizableOptions;
 }) {
-  const { isMobile, state, openMobile, setOpenMobile, setMobileSheetMounted } = useSidebar();
+  const {
+    isMobile,
+    state,
+    openMobile,
+    setOpenMobile,
+    setMobileSheetMounted,
+    peek,
+    openPeek,
+    schedulePeekClose,
+  } = useSidebar();
   // Not usePanelAnimationSettings: its navigation suppression would snap the sheet shut mid-exit when an item navigates.
   const panelAnimationDurationMs = useClientSettings(
     (settings) => settings.panelAnimationDurationMs,
@@ -300,6 +354,7 @@ function Sidebar({
   const prefersReducedMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
   const panelAnimationsActive = panelAnimationDurationMs > 0 && !prefersReducedMotion;
   const offcanvasCollapsed = !isMobile && collapsible === "offcanvas" && state === "collapsed";
+  const peeking = offcanvasCollapsed && peek;
 
   const resolvedResizable = resolveSidebarResizable({ collapsible, isMobile, resizable });
   const instanceContextValue: SidebarInstanceContextProps = { side, resizable: resolvedResizable };
@@ -376,7 +431,8 @@ function Sidebar({
         className="group peer hidden text-sidebar-foreground md:block"
         data-collapsible={state === "collapsed" ? collapsible : ""}
         data-collapsible-mode={collapsible}
-        inert={offcanvasCollapsed}
+        inert={offcanvasCollapsed && !peeking}
+        data-peek={peeking ? "true" : undefined}
         data-side={side}
         data-slot="sidebar"
         data-state={state}
@@ -401,12 +457,18 @@ function Sidebar({
             side === "left"
               ? "left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]"
               : "right-0 group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]",
+            // Peeking overlays the content. Electron draws drag regions through overlays, so the
+            // panel and its titlebar opt out of dragging while shown.
+            "group-data-[peek=true]:z-40 group-data-[peek=true]:shadow-lg/10 group-data-[peek=true]:[-webkit-app-region:no-drag] group-data-[peek=true]:**:[-webkit-app-region:no-drag]!",
+            side === "left" ? "group-data-[peek=true]:left-0!" : "group-data-[peek=true]:right-0!",
             variant === "floating" || variant === "inset"
               ? "p-2 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+(--spacing(4))+2px)]"
               : "group-data-[collapsible=icon]:w-(--sidebar-width-icon) group-data-[side=left]:border-r group-data-[side=right]:border-l",
             className,
           )}
           data-slot="sidebar-container"
+          onPointerEnter={peeking ? openPeek : undefined}
+          onPointerLeave={peeking ? schedulePeekClose : undefined}
           {...props}
         >
           <div
@@ -422,8 +484,18 @@ function Sidebar({
   );
 }
 
-function SidebarTrigger({ className, onClick, ...props }: React.ComponentProps<typeof Button>) {
-  const { toggleSidebar } = useSidebar();
+function SidebarTrigger({
+  className,
+  onClick,
+  onPointerEnter,
+  onPointerLeave,
+  peekOnHover = false,
+  ...props
+}: React.ComponentProps<typeof Button> & {
+  /** Hovering with a mouse previews a collapsed desktop sidebar over the content. */
+  peekOnHover?: boolean;
+}) {
+  const { toggleSidebar, openPeek, schedulePeekClose } = useSidebar();
   const isOpen = useSidebarVisibility();
 
   return (
@@ -441,6 +513,14 @@ function SidebarTrigger({ className, onClick, ...props }: React.ComponentProps<t
       }}
       size="icon"
       variant="ghost"
+      onPointerEnter={(event) => {
+        onPointerEnter?.(event);
+        if (peekOnHover && event.pointerType === "mouse") openPeek();
+      }}
+      onPointerLeave={(event) => {
+        onPointerLeave?.(event);
+        if (peekOnHover) schedulePeekClose();
+      }}
       {...props}
     >
       {isOpen ? <PanelLeftCloseIcon className="size-4" /> : <PanelLeftIcon className="size-4" />}
