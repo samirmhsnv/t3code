@@ -47,8 +47,10 @@ import {
   CircleDashedIcon,
   CircleDotDashedIcon,
   ClockIcon,
+  CloudIcon,
   GitBranchIcon,
   MessageCircleQuestionIcon,
+  MonitorIcon,
   PinIcon,
   PinOffIcon,
   ShieldQuestionIcon,
@@ -1303,9 +1305,18 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                 </span>
               )}
               {variant === "folder" ? (
-                <span className="inline-flex size-4 shrink-0 items-center justify-center">
-                  <FolderStatusGlyph status={status} isUnread={isUnread} />
-                </span>
+                <>
+                  <span className="inline-flex shrink-0 items-center text-sidebar-muted-foreground/70">
+                    {isRemote ? (
+                      <CloudIcon aria-label="Runs on a remote machine" className="size-3.5" />
+                    ) : (
+                      <MonitorIcon aria-label="Runs on this device" className="size-3.5" />
+                    )}
+                  </span>
+                  <span className="inline-flex size-4 shrink-0 items-center justify-center">
+                    <FolderStatusGlyph status={status} isUnread={isUnread} />
+                  </span>
+                </>
               ) : null}
               {draftIndicator}
               {title}
