@@ -24,6 +24,7 @@ import {
 import { useNestedRepoChanges } from "~/state/projectRepositories";
 import { pullRequestEnvironment } from "~/state/pullRequests";
 import { vcsEnvironment } from "~/state/vcs";
+import { useDiffPanelStore } from "~/diffPanelStore";
 import {
   useEnvironmentQuery,
   useEnvironmentQueryIsNewer,
@@ -322,7 +323,11 @@ function ChangeBar({
           key={cell}
           className={cn(
             "h-1.5 w-2 rounded-xs",
-            cell < added ? "bg-success" : cell < filled ? "bg-error" : "bg-muted-foreground/20",
+            cell < added
+              ? "bg-diff-addition"
+              : cell < filled
+                ? "bg-diff-deletion"
+                : "bg-muted-foreground/20",
           )}
         />
       ))}
@@ -337,8 +342,8 @@ function kindLetter(kind: string): string {
 function LineCounts({ additions, deletions }: { additions: number; deletions: number }) {
   return (
     <span className="shrink-0 font-mono tabular-nums">
-      <span className="text-success-foreground">+{additions}</span>{" "}
-      <span className="text-error-foreground">−{deletions}</span>
+      <span className="text-diff-addition-foreground">+{additions}</span>{" "}
+      <span className="text-diff-deletion-foreground">−{deletions}</span>
     </span>
   );
 }
@@ -660,8 +665,11 @@ export function ThreadDetailsFilesTab({
         </div>
         {total > 0 ? (
           <span aria-hidden className="flex h-1 overflow-hidden rounded-full bg-muted">
-            <span className="bg-success" style={{ width: `${(tree.insertions / total) * 100}%` }} />
-            <span className="flex-1 bg-error" />
+            <span
+              className="bg-diff-addition"
+              style={{ width: `${(tree.insertions / total) * 100}%` }}
+            />
+            <span className="flex-1 bg-diff-deletion" />
           </span>
         ) : null}
       </div>
@@ -680,7 +688,11 @@ export function ThreadDetailsFilesTab({
                 type="button"
                 aria-label={`${file.path}, ${file.additions} added, ${file.deletions} removed`}
                 disabled={onOpenChanges === undefined}
-                onClick={onOpenChanges}
+                onClick={() => {
+                  onOpenChanges?.();
+                  // Opening the panel selects the branch range; these files are the working tree.
+                  useDiffPanelStore.getState().selectGitScope(threadRef, "unstaged");
+                }}
                 className="flex h-6 min-w-0 items-center gap-2 rounded-md px-1 text-left outline-none enabled:hover:bg-accent focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
               >
                 <span className="min-w-0 flex-1 truncate font-mono">{file.name}</span>
