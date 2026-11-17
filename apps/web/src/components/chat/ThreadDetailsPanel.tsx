@@ -13,8 +13,6 @@ import {
   ThreadDetailsActivitySection,
   ThreadDetailsFilesTab,
   ThreadDetailsPullRequestSection,
-  ThreadDetailsTabSwitcher,
-  type ThreadDetailsTab,
 } from "./ThreadDetailsTabs";
 import { ThreadDetailsSection } from "./ThreadDetailsSection";
 import { ThreadAutomationsPanel } from "./ThreadAutomationsPanel";
@@ -44,7 +42,7 @@ const GitActionsControl = memo(BaseGitActionsControl);
 
 interface ThreadDetailsPanelProps extends Pick<
   ComponentProps<typeof ThreadDetailsCard>,
-  "anchor" | "handle" | "dock"
+  "anchor" | "handle"
 > {
   forceNewWorktree?: boolean;
   environmentId: EnvironmentId;
@@ -74,9 +72,6 @@ interface ThreadDetailsPanelProps extends Pick<
 export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
   const visible = useClientSettings(resolveThreadDetailsVisibility);
   const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
-  const [tab, setTab] = useState<ThreadDetailsTab>("details");
-  // A draft has no turns, so it has no files to show.
-  const activeTab = props.draftId ? "details" : tab;
   const activeThreadRef = { environmentId: props.environmentId, threadId: props.threadId };
   const project = useProject(scopeProjectRef(props.environmentId, props.projectId));
   const serverConfig = useServerConfigs().get(props.environmentId);
@@ -118,7 +113,6 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
       threadRef={{ environmentId: props.environmentId, threadId: props.threadId }}
       anchor={props.anchor}
       handle={props.handle}
-      dock={props.dock}
       headerActions={
         <Button
           size="icon-xs"
@@ -132,16 +126,7 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
           <EllipsisIcon />
         </Button>
       }
-      headerTabs={
-        props.draftId ? null : (
-          <ThreadDetailsTabSwitcher
-            threadRef={activeThreadRef}
-            tab={activeTab}
-            onTabChange={setTab}
-          />
-        )
-      }
-      contentKey={`${activeTab}:${THREAD_DETAILS_ITEMS.filter((item) => visible[item.id])
+      contentKey={`${THREAD_DETAILS_ITEMS.filter((item) => visible[item.id])
         .map((item) => item.id)
         .join(",")}`}
       onContextMenu={(event) => {
@@ -162,26 +147,35 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
         event.preventDefault();
         setMenuPosition({ x: event.clientX, y: event.clientY });
       }}
-      secondary={
-        activeTab === "details" && !props.draftId && (visible.lineage || visible.sideChats) ? (
-          <ThreadRelationshipsPanel
-            environmentId={props.environmentId}
-            threadId={props.threadId}
-            showLineage={visible.lineage}
-            showSideChats={visible.sideChats}
-          />
-        ) : null
+      extraCards={
+        props.draftId
+          ? []
+          : [
+              visible.lineage || visible.sideChats ? (
+                <ThreadRelationshipsPanel
+                  key="relationships"
+                  environmentId={props.environmentId}
+                  threadId={props.threadId}
+                  showLineage={visible.lineage}
+                  showSideChats={visible.sideChats}
+                />
+              ) : null,
+              <ThreadDetailsSection
+                key="files"
+                headingId="thread-details-files-heading"
+                title="Changed files"
+                separated={false}
+                showHeading={false}
+              >
+                <ThreadDetailsFilesTab
+                  threadRef={activeThreadRef}
+                  onOpenChanges={props.onOpenChanges}
+                />
+              </ThreadDetailsSection>,
+            ]
       }
     >
       {(density) => {
-        if (activeTab === "files") {
-          return (
-            <ThreadDetailsFilesTab
-              threadRef={activeThreadRef}
-              onOpenChanges={props.onOpenChanges}
-            />
-          );
-        }
         // Section flags follow the rows that will render, so no empty section steals the divider rule.
         const show = {
           branch: offersGit && props.isGitRepo && visible.branch,

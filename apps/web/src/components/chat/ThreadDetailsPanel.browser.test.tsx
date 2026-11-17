@@ -136,6 +136,8 @@ function Panel({ fixture }: { fixture: ReturnType<typeof setup> }) {
         previewKey: null,
         registerTimeline: noop,
         detailsCardTopInset: 0,
+        measureDetailsCard: noop,
+        preferredDetailsCard: placement,
         detailsCardPlacement: placement,
       }}
     >

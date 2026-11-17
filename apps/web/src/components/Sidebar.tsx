@@ -326,9 +326,7 @@ const EMPTY_THREADS: readonly EnvironmentThreadShell[] = [];
 const NEEDS_YOU_ROW_PARENT = "stream:needs-you";
 const WORKING_ROW_PARENT = "stream:working";
 const RECENT_ROW_PARENT = "stream:recent";
-const QUIET_PROJECTS_ROW = "stream:quiet-projects";
 const RECENT_EXPANDED_KEY = "t3code:sidebar:recent-expanded";
-const QUIET_PROJECTS_EXPANDED_KEY = "t3code:sidebar:quiet-projects-expanded";
 const ENVIRONMENT_FILTER_KEY = "t3code:sidebar:environment-filter";
 
 const SETTLED_TAIL_INITIAL_COUNT = 10;
@@ -430,8 +428,6 @@ function useSidebarThreads(input: {
   readonly folderGroups: readonly SidebarProjectSnapshot[] | null;
   // Keeps folders with no active threads, so a project the user filtered to or pinned can start one.
   readonly keepEmptyFolders: (group: SidebarProjectSnapshot) => boolean;
-  // Off while the user scoped the sidebar to chosen projects, which should all stay in view.
-  readonly foldQuietProjects: boolean;
 }) {
   const {
     projectScopeKey,
@@ -444,7 +440,6 @@ function useSidebarThreads(input: {
     routeRowThreadKey,
     folderGroups,
     keepEmptyFolders: keepEmpty,
-    foldQuietProjects,
   } = input;
   // Folders already separate the work, so boring mode has no Working shelf.
   const workingShelfEnabled =
@@ -473,11 +468,6 @@ function useSidebarThreads(input: {
   );
   const [recentExpanded, setRecentExpanded] = useLocalStorage(
     RECENT_EXPANDED_KEY,
-    false,
-    Schema.Boolean,
-  );
-  const [quietProjectsExpanded, setQuietProjectsExpanded] = useLocalStorage(
-    QUIET_PROJECTS_EXPANDED_KEY,
     false,
     Schema.Boolean,
   );
@@ -600,9 +590,6 @@ function useSidebarThreads(input: {
             collapsed,
             lastActivityMs: Math.max(0, ...activityTimes),
             activity: sidebarActivityDayBuckets(activityTimes, nowMs),
-            holdsRouteThread: folder.threads.some(
-              (thread) => threadShellKey(thread) === routeRowThreadKey,
-            ),
             // A closed folder still shows the open thread, and hints at the rest.
             threads: collapsed
               ? routeThreadOnly(folder.threads, routeRowThreadKey)
@@ -619,20 +606,15 @@ function useSidebarThreads(input: {
           lastActivityMsOf: (folder) => folder.lastActivityMs,
           isPinned: (folder) => folder.group.pinned,
           isArchived: (folder) => folder.group.archived,
-          keepVisible: (folder) => folder.holdsRouteThread,
-          foldQuiet: foldQuietProjects,
-          nowMs,
         });
-  const projectFolders = orderedFolders?.active ?? null;
-  const quietProjectFolders = orderedFolders?.quiet ?? [];
-  const renderedQuietFolders = quietProjectsExpanded ? quietProjectFolders : [];
+  const projectFolders = orderedFolders;
   const orderedThreads = [
     ...pinnedThreads,
     ...stream.needsYou,
     ...stream.working,
     ...(projectFolders === null
       ? activeThreads
-      : [...projectFolders, ...renderedQuietFolders].flatMap((folder) => folder.threads)),
+      : projectFolders.flatMap((folder) => folder.threads)),
     ...visibleWorkingThreads,
     ...visibleSnoozedThreads,
     ...renderedSettledThreads,
@@ -674,10 +656,6 @@ function useSidebarThreads(input: {
     workingShelfExpanded,
     toggleWorkingShelf: () => setWorkingShelfExpanded((value) => !value),
     projectFolders,
-    quietProjectFolders,
-    renderedQuietFolders,
-    quietProjectsExpanded,
-    toggleQuietProjects: () => setQuietProjectsExpanded((value) => !value),
     stream,
     recentExpanded,
     toggleRecent: () => setRecentExpanded((value) => !value),
@@ -1390,10 +1368,6 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     workingShelfExpanded,
     toggleWorkingShelf,
     projectFolders,
-    quietProjectFolders,
-    renderedQuietFolders,
-    quietProjectsExpanded,
-    toggleQuietProjects,
     stream,
     recentExpanded,
     toggleRecent,
@@ -1429,7 +1403,6 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       (scopedProjectGroups.length > 0 || (group.pinned && !group.archived)) &&
       (environmentFilter === "all" ||
         group.memberProjectRefs.some((ref) => ref.environmentId === environmentFilter)),
-    foldQuietProjects: scopedProjectGroups.length === 0,
   });
 
   // Ranked across environments as the palette ranks them, so one
@@ -2088,8 +2061,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   const listMotionLayoutKey = [
     sidebarListItemsKey,
     projectFolders
-      ?.concat(renderedQuietFolders)
-      .map((folder) => `${folder.group.projectKey}:${folder.threads.length}`)
+      ?.map((folder) => `${folder.group.projectKey}:${folder.threads.length}`)
       .join("\n") ?? "",
     [...stream.needsYou, ...stream.working, ...stream.recent].map(threadShellKey).join("\n"),
     visibleDraftSessionCount,
@@ -3464,7 +3436,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                               );
                             }
                           }
-                          const folderCount = projectFolders.length + quietProjectFolders.length;
+                          const folderCount = projectFolders.length;
                           if (folderCount > 0) {
                             items.push(
                               <SidebarStreamHeader
@@ -3501,25 +3473,6 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                             }
                           };
                           for (const folder of projectFolders) pushFolder(folder);
-                          if (quietProjectFolders.length > 0) {
-                            items.push(
-                              <SidebarStreamToggleRow
-                                key="stream-quiet-projects"
-                                rowId={QUIET_PROJECTS_ROW}
-                                expanded={quietProjectsExpanded}
-                                label={`${quietProjectFolders.length} quiet project${quietProjectFolders.length === 1 ? "" : "s"}`}
-                                detail={
-                                  quietProjectsExpanded
-                                    ? undefined
-                                    : quietProjectFolders
-                                        .map((folder) => folder.group.displayName)
-                                        .join(", ")
-                                }
-                                onToggle={toggleQuietProjects}
-                              />,
-                            );
-                            for (const folder of renderedQuietFolders) pushFolder(folder);
-                          }
                           continue;
                         }
                         switch (item.marker) {

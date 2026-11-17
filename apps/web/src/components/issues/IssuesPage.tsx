@@ -11,7 +11,6 @@ import { PlusIcon, SearchIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { isElectron } from "../../env";
-import { cn } from "~/lib/utils";
 import { useIssueList } from "../../state/issues";
 import { WorkspaceBreadcrumb, WorkspaceBreadcrumbItem } from "../WorkspaceBreadcrumb";
 import { WorkspacePageHeader } from "../WorkspacePageHeader";
@@ -22,6 +21,7 @@ import { RefreshIcon } from "../ui/refresh-icon";
 import { SidebarInset } from "../ui/sidebar";
 import { Skeleton } from "../ui/skeleton";
 import { Toggle, ToggleGroup } from "../ui/toggle-group";
+import { Sheet, SheetHeader, SheetPopup, SheetTitle } from "../ui/sheet";
 import { IssueDetailPanel } from "./IssueDetailPanel";
 import { shouldCloseOnEscape } from "./issueDetail.logic";
 import { IssueList } from "./IssueList";
@@ -180,13 +180,7 @@ export function IssuesPage() {
           </Button>
         </WorkspacePageHeader>
         <div className="flex min-h-0 flex-1">
-          <div
-            className={cn(
-              "flex min-h-0 min-w-0 flex-1 flex-col",
-              selected !== null &&
-                "max-xl:hidden xl:w-96 xl:flex-none xl:border-e xl:border-border",
-            )}
-          >
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border px-4 py-2">
               <ToggleGroup
                 aria-label="Whose issues"
@@ -257,11 +251,31 @@ export function IssuesPage() {
               )}
             </div>
           </div>
-          {selected !== null ? (
-            <section aria-label="Issue" className="flex min-h-0 min-w-0 flex-1 flex-col">
-              <IssueDetailPanel key={selectedKey} reference={selected} onClose={() => open(null)} />
-            </section>
-          ) : null}
+          {/* The issue slides over the list, so the list keeps its width. */}
+          <Sheet
+            open={selected !== null}
+            onOpenChange={(next) => {
+              if (!next) open(null);
+            }}
+          >
+            <SheetPopup
+              side="right"
+              variant="inset"
+              showCloseButton={false}
+              className="w-full max-w-4xl overflow-hidden"
+            >
+              <SheetHeader className="sr-only">
+                <SheetTitle>Issue</SheetTitle>
+              </SheetHeader>
+              {selected !== null ? (
+                <IssueDetailPanel
+                  key={selectedKey}
+                  reference={selected}
+                  onClose={() => open(null)}
+                />
+              ) : null}
+            </SheetPopup>
+          </Sheet>
         </div>
       </div>
       {creating ? (

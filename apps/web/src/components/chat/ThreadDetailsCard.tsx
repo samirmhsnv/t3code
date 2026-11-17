@@ -3,11 +3,11 @@ import {
   useLayoutEffect,
   useState,
   type MouseEventHandler,
+  type ReactElement,
   type ReactNode,
   type RefObject,
 } from "react";
 import type { ScopedThreadRef } from "@t3tools/contracts";
-import { createPortal } from "react-dom";
 import { ScrollArea } from "../ui/scroll-area";
 import { cn } from "../../lib/utils";
 import { Popover, PopoverPopup, PopoverCreateHandle } from "../ui/popover";
@@ -19,38 +19,32 @@ import {
 } from "./threadDetailsCardLayout";
 import { observeResize } from "../../lib/observeResize";
 import { requestWorkspaceFocus } from "../../lib/workspaceFocus";
-import { isElectron } from "../../env";
 
 export function ThreadDetailsCard({
   threadRef,
   anchor,
   handle,
-  dock,
   headerActions,
-  headerTabs,
   contentKey,
   onContextMenu,
   children,
-  secondary,
+  extraCards,
 }: {
   threadRef: ScopedThreadRef;
   anchor: RefObject<Element | null>;
   handle: ReturnType<typeof PopoverCreateHandle>;
-  /** The full-height column the card docks into beside the chat column. */
-  dock?: HTMLElement | null | undefined;
-  /** Controls in the docked column's header. */
+  /** Controls atop the card. */
   headerActions?: ReactNode;
-  /** A view switcher in the docked header, or atop the popover card. */
-  headerTabs?: ReactNode;
   /** Changes when the set of rendered items changes, so cached heights are measured again. */
   contentKey: string;
   onContextMenu?: MouseEventHandler<HTMLDivElement>;
   children: (density: "full" | "compact" | "essential") => ReactNode;
-  /** A second card below the first, shown at full density while it renders a section. */
-  secondary?: ReactNode;
+  /** Cards below the first, each shown at full density while it renders a section. */
+  extraCards?: ReadonlyArray<ReactElement | null>;
 }) {
   const detailsArea = workspaceAreaProps("details", 3, "Thread details");
   const canvas = useChatCanvas();
+  const preferredPlacement = canvas?.preferredDetailsCard ?? null;
   const placement = canvas?.detailsCardPlacement ?? null;
   const mode = placement ? "inline" : "popover";
   const topInset = canvas?.detailsCardTopInset ?? 0;
@@ -69,6 +63,9 @@ export function ThreadDetailsCard({
     measurements.key === measurementKey ? measurements.heights : { full: 0, compact: 0 };
   const height = placement?.height ?? Math.max(0, (canvas?.container.height ?? 0) - 52);
   const density = resolveThreadDetailsCardDensity(height, contentHeights);
+  const measureDetailsCard = canvas?.measureDetailsCard;
+  const cardWidth = preferredPlacement?.width;
+  const { environmentId, threadId } = threadRef;
   // The mode derives from canvas measurements, the preview frame and the
   // inline flag, which live in three stores, so no single write site sees the
   // card leave popover mode. A flag left set would reopen the popover unasked
@@ -106,80 +103,67 @@ export function ThreadDetailsCard({
           ? current
           : { key: measurementKey, heights: { ...heights, [density]: fittingHeight } };
       });
+      // Only the laid-out DOM knows the full card height, and the canvas keeps preview
+      // frames clear of it, so it is reported from this measure effect.
+      if (density === "full" && cardWidth !== undefined) {
+        measureDetailsCard?.({
+          threadRef: { environmentId, threadId },
+          width: cardWidth,
+          fullContentHeight: next,
+        });
+      }
     };
     measure();
     return observeResize(element, measure);
-  }, [contentElement, density, measurementKey]);
+  }, [
+    contentElement,
+    density,
+    measurementKey,
+    cardWidth,
+    measureDetailsCard,
+    environmentId,
+    threadId,
+  ]);
   const cardClassName =
     "dropdown-glass isolate contain-paint grid min-h-0 grid-rows-[minmax(0,1fr)] overflow-hidden rounded-2xl";
   const card = (
     <div
-      className="flex max-h-[min(calc(100dvh-6.5rem),calc(var(--available-height,100dvh)-1rem))] flex-col gap-3"
+      className={cn(
+        "flex flex-col gap-3",
+        mode === "popover" &&
+          "max-h-[min(calc(100dvh-6.5rem),calc(var(--available-height,100dvh)-1rem))]",
+      )}
+      style={placement ? { maxHeight: height } : undefined}
       onContextMenu={onContextMenu}
     >
       <div className={cardClassName} data-thread-details-card>
         <ScrollArea scrollFade className="min-h-0">
           <div ref={setContentElement}>
-            {headerTabs ? <div className="flex justify-end px-2 pt-2">{headerTabs}</div> : null}
+            {headerActions ? (
+              <div className="flex items-center justify-end gap-1 px-2 pt-2">{headerActions}</div>
+            ) : null}
             {children(density)}
           </div>
         </ScrollArea>
       </div>
-      {secondary && density === "full" ? (
-        // Shrinks before the first card, so its scrolling lists give way to the controls.
-        <div
-          className={cn(cardClassName, "shrink-[4] [&:not(:has(section))]:hidden")}
-          data-thread-details-card
-        >
-          <ScrollArea scrollFade className="min-h-0">
-            {secondary}
-          </ScrollArea>
-        </div>
-      ) : null}
+      {density === "full"
+        ? extraCards?.map((extra) =>
+            extra ? (
+              // Shrinks before the first card, so its scrolling lists give way to the controls.
+              <div
+                key={extra.key ?? undefined}
+                className={cn(cardClassName, "shrink-[4] [&:not(:has(section))]:hidden")}
+                data-thread-details-card
+              >
+                <ScrollArea scrollFade className="min-h-0">
+                  {extra}
+                </ScrollArea>
+              </div>
+            ) : null,
+          )
+        : null}
     </div>
   );
-  const docked =
-    placement && inlineOpen ? (
-      <aside
-        {...detailsArea}
-        data-workspace-focus-key={`details:${threadRef.environmentId}:${threadRef.threadId}`}
-        className={cn(
-          "flex min-h-0 flex-col bg-background",
-          // Until the dock mounts, the card covers the canvas edge instead of shifting the chat.
-          dock ? "flex-1" : "absolute inset-y-0 right-0 z-20 w-(--thread-details-panel-width)",
-        )}
-        data-density={density}
-        data-thread-details-panel="inline"
-        onContextMenu={onContextMenu}
-      >
-        <header
-          className={cn(
-            "flex h-(--workspace-topbar-height) shrink-0 items-center gap-2 ps-4 pe-2 wco:pe-(--workspace-native-controls-inset)",
-            isElectron && "drag-region",
-          )}
-        >
-          <h2 className="min-w-0 flex-1 truncate text-xs font-semibold">Thread details</h2>
-          {headerTabs ? (
-            <div className="flex shrink-0 items-center [-webkit-app-region:no-drag]">
-              {headerTabs}
-            </div>
-          ) : null}
-          {headerActions ? (
-            <div className="flex shrink-0 items-center [-webkit-app-region:no-drag]">
-              {headerActions}
-            </div>
-          ) : null}
-        </header>
-        <ScrollArea scrollFade className="min-h-0 flex-1">
-          <div data-thread-details-card>
-            <div ref={setContentElement}>{children(density)}</div>
-          </div>
-          {secondary && density === "full" ? (
-            <div className="border-t border-border [&:not(:has(section))]:hidden">{secondary}</div>
-          ) : null}
-        </ScrollArea>
-      </aside>
-    ) : null;
   return (
     <Popover
       handle={handle}
@@ -198,7 +182,27 @@ export function ThreadDetailsCard({
         useRightPanelStore.getState().setThreadPanelOpen(threadRef, "popover", open);
       }}
     >
-      {docked && dock ? createPortal(docked, dock) : docked}
+      {placement && inlineOpen ? (
+        <aside
+          {...detailsArea}
+          data-workspace-focus-key={`details:${threadRef.environmentId}:${threadRef.threadId}`}
+          // Skip the return transition to avoid overlapping the rising preview.
+          className={cn(
+            "absolute z-20",
+            topInset > 0 && "transition-[top] duration-150 ease-out motion-reduce:transition-none",
+          )}
+          style={{
+            right: placement.right,
+            top: placement.y,
+            width: placement.width,
+            maxHeight: height,
+          }}
+          data-density={density}
+          data-thread-details-panel="inline"
+        >
+          {card}
+        </aside>
+      ) : null}
       {/* Rendered in both modes: base-ui keeps a popup that unmounts mid-open
           mounted, because its exit animation never finishes. Staying in the tree
           lets it close cleanly when the card switches inline. */}

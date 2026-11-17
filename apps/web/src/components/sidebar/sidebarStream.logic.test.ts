@@ -89,36 +89,31 @@ describe("buildSidebarStream", () => {
 });
 
 describe("orderSidebarProjectFolders", () => {
-  type F = { id: string; at: number; pinned?: boolean; archived?: boolean; open?: boolean };
-  const order = (folders: F[], foldQuiet = true) =>
-    orderSidebarProjectFolders(folders, {
-      lastActivityMsOf: (folder) => folder.at,
-      isPinned: (folder) => folder.pinned === true,
-      isArchived: (folder) => folder.archived === true,
-      keepVisible: (folder) => folder.open === true,
-      foldQuiet,
-      nowMs: NOW,
-    });
-  const ids = (folders: F[]) => folders.map((folder) => folder.id);
-
-  it("orders by activity with pinned first and archived last, folding quiet ones", () => {
-    const result = order([
-      { id: "archived", at: NOW - HOUR, archived: true },
-      { id: "old", at: NOW - 3 * DAY },
-      { id: "pinned-stale", at: NOW - 30 * DAY, pinned: true },
-      { id: "fresh", at: NOW - HOUR },
-      { id: "stale", at: NOW - 8 * DAY },
-      { id: "empty", at: 0 },
-      { id: "stale-open", at: NOW - 9 * DAY, open: true },
+  type F = { id: string; at: number; pinned?: boolean; archived?: boolean };
+  it("orders by activity with pinned first and archived last, keeping every folder", () => {
+    const result = orderSidebarProjectFolders(
+      [
+        { id: "archived", at: NOW - HOUR, archived: true },
+        { id: "old", at: NOW - 3 * DAY },
+        { id: "pinned-stale", at: NOW - 30 * DAY, pinned: true },
+        { id: "fresh", at: NOW - HOUR },
+        { id: "stale", at: NOW - 8 * DAY },
+        { id: "empty", at: 0 },
+      ] satisfies F[],
+      {
+        lastActivityMsOf: (folder) => folder.at,
+        isPinned: (folder) => folder.pinned === true,
+        isArchived: (folder) => folder.archived === true,
+      },
+    );
+    expect(result.map((folder) => folder.id)).toEqual([
+      "pinned-stale",
+      "fresh",
+      "old",
+      "stale",
+      "empty",
+      "archived",
     ]);
-    expect(ids(result.active)).toEqual(["pinned-stale", "fresh", "old", "stale-open", "archived"]);
-    expect(ids(result.quiet)).toEqual(["stale", "empty"]);
-  });
-
-  it("keeps every folder visible when folding is off", () => {
-    const result = order([{ id: "stale", at: NOW - 8 * DAY }], false);
-    expect(ids(result.active)).toEqual(["stale"]);
-    expect(result.quiet).toEqual([]);
   });
 });
 

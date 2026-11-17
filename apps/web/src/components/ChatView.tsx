@@ -732,6 +732,9 @@ export default function ChatView(props: ChatViewProps) {
   }, [isWorkspaceFileDragActive]);
   const prefersPlanSidebarSheet = useMediaQuery(RIGHT_PANEL_INLINE_LAYOUT_MEDIA_QUERY);
   const isMobileViewport = useMediaQuery("max-sm");
+  // Desktop composers move their model and mode controls into the row under the card.
+  const [composerControlsHost, setComposerControlsHost] = useState<HTMLDivElement | null>(null);
+  const composerControlsBelow = !isMobileViewport;
   // Focusing the composer without a tap raises the on-screen keyboard on touch devices.
   const isCoarsePointer = useMediaQuery({ pointer: "coarse" });
   const [workspaceLayoutElement, setWorkspaceLayoutElement] = useState<HTMLDivElement | null>(null);
@@ -1972,11 +1975,13 @@ export default function ChatView(props: ChatViewProps) {
   const threadPanelPresentation = useStore(
     chatCanvasStore,
     (state) =>
-      resolveChatCanvasModel({ measurements: state.measurements, preview: canvasPreview })
-        .detailsCardMode,
-  );
-  const [threadDetailsDockElement, setThreadDetailsDockElement] = useState<HTMLElement | null>(
-    null,
+      resolveChatCanvasModel({
+        measurements: state.measurements,
+        detailsCardMeasurement: state.detailsCardMeasurement,
+        threadRef: activeThreadRef,
+        preview: canvasPreview,
+        detailsCardInlineOpen: threadPanelInlineOpen,
+      }).detailsCardMode,
   );
   const threadPanelOpen = useRightPanelStore((state) =>
     selectThreadPanelOpen(
@@ -3307,11 +3312,6 @@ export default function ChatView(props: ChatViewProps) {
       {panelToggleControls}
     </WorkspaceTitlebarControls>
   );
-  const showThreadDetailsDock =
-    !embedded &&
-    threadPanelPresentation === "inline" &&
-    threadPanelInlineOpen &&
-    !rightPanelMaximized;
   const workspaceFileDropHandlers = makeWorkspaceFileDropHandlers({
     setDragActive: setIsWorkspaceFileDragActive,
     addFiles: addDroppedFilesToComposer,
@@ -3364,18 +3364,7 @@ export default function ChatView(props: ChatViewProps) {
                 className="pointer-events-none fixed top-[var(--workspace-controls-top)] right-[var(--workspace-controls-right)] h-[var(--workspace-topbar-height)] w-28 [-webkit-app-region:no-drag]"
               />
             ) : null}
-            {rightPanelControlsAtRoot ||
-            rightPanelControlsInPanel ? null : showThreadDetailsDock ? (
-              // The docked details column owns the window's right edge, so the controls end the chat column.
-              <div
-                className="absolute inset-y-0 right-3 z-50 flex items-center [-webkit-app-region:no-drag]"
-                data-workspace-titlebar-controls
-              >
-                {panelToggleControls}
-              </div>
-            ) : (
-              panelLayoutControls
-            )}
+            {!rightPanelControlsAtRoot && !rightPanelControlsInPanel ? panelLayoutControls : null}
             {inlineRightPanelOwnsTitleBar ? threadPanelHeaderControl : null}
             <ChatHeader
               activeThreadEnvironmentId={activeThread.environmentId}
@@ -3405,7 +3394,7 @@ export default function ChatView(props: ChatViewProps) {
               enabled: threadFindEnabled,
             }}
             store={chatCanvasStore}
-            detailsDock={showThreadDetailsDock ? threadDetailsDockElement : null}
+            threadRef={activeThreadRef}
             preview={canvasPreview}
             detailsCardTopInset={isThreadFindActive ? THREAD_FIND_BAR_RESERVED_HEIGHT : 0}
             composerOverlayElement={isDraftHeroState ? null : composerOverlayElement}
@@ -3614,7 +3603,9 @@ export default function ChatView(props: ChatViewProps) {
                       />
                     )}
                     <div className="relative">
-                      <ComposerSurface.Shell contextRow={showComposerContextStrip}>
+                      <ComposerSurface.Shell
+                        contextRow={showComposerContextStrip || composerControlsBelow}
+                      >
                         <ComposerSurface.Host
                           inert={queuedRunEdit.isSaving}
                           aria-busy={queuedRunEdit.isSaving}
@@ -3761,6 +3752,9 @@ export default function ChatView(props: ChatViewProps) {
                                 permissionsShownInStrip={
                                   showComposerContextStrip && !isServerThread
                                 }
+                                composerControlsHost={
+                                  composerControlsBelow ? composerControlsHost : null
+                                }
                                 promptRef={promptRef}
                                 composerImagesRef={composerImagesRef}
                                 composerFilesRef={composerFilesRef}
@@ -3805,10 +3799,11 @@ export default function ChatView(props: ChatViewProps) {
                         <div className="min-h-0">
                           <div
                             data-terminal-open={terminalUiState.terminalOpen ? "true" : undefined}
-                            className="relative z-0"
+                            // The whole strip blurs the timeline scrolling under it.
+                            className="surface-glass relative z-0 flex min-w-0 items-start"
                           >
                             {showComposerContextStrip && (
-                              <div className="pointer-events-auto">
+                              <div className="pointer-events-auto min-w-0 flex-1">
                                 <BranchToolbar
                                   forceNewWorktree={multipleModelSelections !== null}
                                   ref={branchToolbarRef}
@@ -3865,6 +3860,13 @@ export default function ChatView(props: ChatViewProps) {
                                 />
                               </div>
                             )}
+                            {composerControlsBelow ? (
+                              <div
+                                ref={setComposerControlsHost}
+                                data-composer-controls-host
+                                className="pointer-events-auto ms-auto flex min-w-0 max-w-3/5 shrink-0 items-center pt-2 pe-1 empty:hidden"
+                              />
+                            ) : null}
                           </div>
                         </div>
                       </ComposerSurface.Shell>
@@ -3909,7 +3911,6 @@ export default function ChatView(props: ChatViewProps) {
                 <ThreadDetailsPanel
                   anchor={threadPanelPopoverAnchorRef}
                   handle={threadPanelPopoverHandle}
-                  dock={showThreadDetailsDock ? threadDetailsDockElement : null}
                   forceNewWorktree={multipleModelSelections !== null}
                   environmentId={activeThread.environmentId}
                   threadId={activeThread.id}
@@ -3975,14 +3976,6 @@ export default function ChatView(props: ChatViewProps) {
           />
         )}
       </div>
-
-      {showThreadDetailsDock ? (
-        <div
-          ref={setThreadDetailsDockElement}
-          className="flex w-(--thread-details-panel-width) shrink-0 flex-col border-s border-border bg-background"
-          data-thread-details-dock
-        />
-      ) : null}
 
       {rightPanelPresent && activeThreadRef && !embedded ? (
         <ChatRightPanel

@@ -40,7 +40,6 @@ import {
   PullRequestReviewDecisionGlyph,
 } from "../pullRequest/pullRequestPresentation";
 import { Badge } from "../ui/badge";
-import { Toggle, ToggleGroup } from "../ui/toggle-group";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { ThreadDetailsSection } from "./ThreadDetailsSection";
 import {
@@ -52,38 +51,6 @@ import {
   threadPullRequestFileGroups,
   type ThreadChangedFile,
 } from "./threadDetailsTabs.logic";
-
-export type ThreadDetailsTab = "details" | "files";
-
-export function ThreadDetailsTabSwitcher({
-  threadRef,
-  tab,
-  onTabChange,
-}: {
-  threadRef: ScopedThreadRef;
-  tab: ThreadDetailsTab;
-  onTabChange: (tab: ThreadDetailsTab) => void;
-}) {
-  const checkpoints = useThreadCheckpointSummaries(threadRef);
-  const files = summarizeThreadChanges(checkpoints).files;
-  return (
-    <ToggleGroup
-      aria-label="Thread details view"
-      value={[tab]}
-      onValueChange={(next) => {
-        const value = next[0];
-        if (value === "details" || value === "files") onTabChange(value);
-      }}
-    >
-      <Toggle value="details">Details</Toggle>
-      {/* Distinct from the right panel's "Files" browser for assistive tech. */}
-      <Toggle value="files" aria-label="Changed files">
-        Files
-        {files > 0 ? <span className="tabular-nums text-muted-foreground">{files}</span> : null}
-      </Toggle>
-    </ToggleGroup>
-  );
-}
 
 function DetailsRow({ label, children }: { label: string; children: ReactNode }) {
   return (

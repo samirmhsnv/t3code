@@ -407,8 +407,8 @@ function IssueProperties({
 }) {
   const label = ISSUE_SOURCE_LABELS[issue.source];
   return (
-    <div className="flex flex-col gap-4 px-4 py-4">
-      <dl className="flex flex-col gap-1">
+    <div className="flex flex-col gap-1">
+      <dl className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">
         <PropertyRow label="Status">
           <StatusPicker issue={issue} options={options} canWrite={canWrite} onUpdate={onUpdate} />
         </PropertyRow>
@@ -438,8 +438,7 @@ function IssueProperties({
           </PropertyRow>
         ) : null}
       </dl>
-      <Separator />
-      <dl className="flex flex-col gap-1">
+      <dl className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">
         <PropertyRow label="Created">
           <StaticValue>
             {issue.creator ? <IssueAvatar person={issue.creator} /> : null}
@@ -811,34 +810,30 @@ export function IssueDetailPanel({
         </Button>
       </div>
       {issue ? (
-        <div className="scrollbar-gutter-both flex min-h-0 flex-1 flex-col overflow-y-auto md:flex-row md:overflow-hidden">
-          <div className="scrollbar-gutter-both md:min-h-0 md:min-w-0 md:flex-1 md:overflow-y-auto">
-            <article className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-6 pt-6 pb-10">
-              <IssueTitle
-                title={issue.title}
+        <div className="scrollbar-gutter-both min-h-0 flex-1 overflow-y-auto">
+          <article className="mx-auto flex w-full max-w-3xl flex-col gap-4 px-6 pt-5 pb-10">
+            <section aria-label="Issue properties">
+              <IssueProperties
+                issue={issue}
+                options={options ?? NO_OPTIONS}
                 canWrite={canWrite}
-                onSave={(title) => patch({ title })}
+                onUpdate={(next) => void patch(next)}
               />
-              <IssueDescription
-                description={issue.description}
-                canWrite={canWrite}
-                onSave={(description) => patch({ description })}
-              />
-              <Separator className="my-4" />
-              <IssueActivity issue={issue} canComment={canComment} onComment={comment} />
-            </article>
-          </div>
-          <aside
-            aria-label="Issue properties"
-            className="shrink-0 border-border bg-muted/30 max-md:order-first max-md:border-b md:w-(--thread-details-panel-width) md:overflow-y-auto md:border-s"
-          >
-            <IssueProperties
-              issue={issue}
-              options={options ?? NO_OPTIONS}
+            </section>
+            <Separator />
+            <IssueTitle
+              title={issue.title}
               canWrite={canWrite}
-              onUpdate={(next) => void patch(next)}
+              onSave={(title) => patch({ title })}
             />
-          </aside>
+            <IssueDescription
+              description={issue.description}
+              canWrite={canWrite}
+              onSave={(description) => patch({ description })}
+            />
+            <Separator className="my-4" />
+            <IssueActivity issue={issue} canComment={canComment} onComment={comment} />
+          </article>
         </div>
       ) : query.error ? (
         <Empty>

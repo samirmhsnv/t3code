@@ -5,7 +5,6 @@ export type SidebarStreamLane = "needs-you" | "working" | "unread";
 
 export const SIDEBAR_RECENT_COUNT = 5;
 const SIDEBAR_RECENT_EXPANDED_COUNT = 25;
-const SIDEBAR_QUIET_PROJECT_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
 const SIDEBAR_ACTIVITY_DAYS = 7;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -68,37 +67,20 @@ export function buildSidebarStream<T>(input: {
   };
 }
 
-/**
- * Orders folders by their latest thread activity. Pinned folders lead and archived
- * ones trail; unpinned folders idle past the quiet window fold into `quiet`.
- */
+/** Orders folders by their latest thread activity; pinned folders lead and archived ones trail. */
 export function orderSidebarProjectFolders<F>(
   folders: readonly F[],
   input: {
     readonly lastActivityMsOf: (folder: F) => number;
     readonly isPinned: (folder: F) => boolean;
     readonly isArchived: (folder: F) => boolean;
-    readonly keepVisible: (folder: F) => boolean;
-    readonly foldQuiet: boolean;
-    readonly nowMs: number;
   },
-): { readonly active: F[]; readonly quiet: F[] } {
+): F[] {
   const rank = (folder: F) => (input.isPinned(folder) ? 0 : input.isArchived(folder) ? 2 : 1);
-  const ordered = folders.toSorted(
+  return folders.toSorted(
     (left, right) =>
       rank(left) - rank(right) || input.lastActivityMsOf(right) - input.lastActivityMsOf(left),
   );
-  if (!input.foldQuiet) return { active: ordered, quiet: [] };
-  const active: F[] = [];
-  const quiet: F[] = [];
-  for (const folder of ordered) {
-    const isQuiet =
-      !input.isPinned(folder) &&
-      !input.keepVisible(folder) &&
-      input.nowMs - input.lastActivityMsOf(folder) > SIDEBAR_QUIET_PROJECT_AFTER_MS;
-    (isQuiet ? quiet : active).push(folder);
-  }
-  return { active, quiet };
 }
 
 /**
