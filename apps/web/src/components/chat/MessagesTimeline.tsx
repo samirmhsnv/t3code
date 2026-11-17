@@ -1225,6 +1225,8 @@ const ConversationTimeline = memo(function ConversationTimeline({
     );
   const listHeader = (
     <>
+      {/* Clears the content tabs when they float over the timeline. */}
+      <div aria-hidden className="h-(--content-tabs-overlay,0px)" />
       {parentThreadLink === null ? listHeaderLeadingContent : null}
       {historyControls ? <TimelineHistoryControl {...historyControls} /> : null}
       {parentThreadLink !== null ? listHeaderLeadingContent : null}

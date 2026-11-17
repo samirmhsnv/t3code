@@ -2334,6 +2334,24 @@ code {
   right: calc(var(--workspace-controls-right) + var(--thread-details-panel-width) + 0.5rem);
 }
 
+/* Over a thread, the content tabs float on the timeline as glass, and the timeline starts below
+   them without its own top fade. A right panel or the attention strip keeps the bar in flow. */
+[data-content-tabs]:has([data-chat-canvas]):not(
+    :has([data-preview-panel-mode="inline"], [aria-label="Needs attention"])
+  ) {
+  --content-tabs-overlay: var(--workspace-topbar-height);
+  --workspace-titlebar-scroll-fade-height: 0px;
+}
+[data-content-tabs]:has([data-chat-canvas]):not(
+    :has([data-preview-panel-mode="inline"], [aria-label="Needs attention"])
+  )
+  > [data-content-tabs-nav] {
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  z-index: 30;
+}
+
 /* With no right panel, the inline details column runs the window's right edge from the top bar
    to the status bar, beside the panel controls. */
 :root:not(:has([data-preview-panel-mode="inline"])) [data-thread-details-panel="inline"] {

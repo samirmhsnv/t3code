@@ -32,11 +32,16 @@ export function ContentTabs({ children }: { children: ReactNode }) {
 
   return (
     // The page below sizes itself to the window; here it fills what the strip leaves.
-    <div className="flex h-full min-w-0 flex-1 flex-col [&>[data-slot=sidebar-inset]]:h-auto [&>[data-slot=sidebar-inset]]:min-h-0 [&>[data-slot=sidebar-inset]]:flex-1">
+    <div
+      data-content-tabs
+      className="relative flex h-full min-w-0 flex-1 flex-col [&>[data-slot=sidebar-inset]]:h-auto [&>[data-slot=sidebar-inset]]:min-h-0 [&>[data-slot=sidebar-inset]]:flex-1"
+    >
+      {/* Over a thread it floats on the timeline as glass; index.css decides when. */}
       <nav
         aria-label="Content"
+        data-content-tabs-nav
         className={cn(
-          "flex h-[var(--workspace-topbar-height)] shrink-0 items-center gap-1 border-b border-border/60 bg-background pl-(--workspace-gutter-start) pr-(--workspace-gutter-end)",
+          "surface-glass flex h-[var(--workspace-topbar-height)] shrink-0 items-center gap-1 pl-(--workspace-gutter-start) pr-(--workspace-gutter-end)",
           // A hidden sidebar leaves its reopen button floating over this strip's start.
           "group-data-[sidebar-state=collapsed]/sidebar-wrapper:pl-(--workspace-titlebar-content-left)",
           isElectron && "drag-region",
