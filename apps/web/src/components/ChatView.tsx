@@ -2439,7 +2439,6 @@ export default function ChatView(props: ChatViewProps) {
     activeBranchMismatchKey,
     attentionNow,
     workNow,
-    backgroundWork,
     childInputNow,
     goalNow,
     handleSwitchCheckoutToThread,
@@ -3572,6 +3571,14 @@ export default function ChatView(props: ChatViewProps) {
                   : "pointer-events-none absolute inset-x-0 bottom-0 z-20 pt-1.5 sm:pt-2"
               }
             >
+              {isDraftHeroState ? null : (
+                // One blur behind the composer and its controls, fading in above them, so the
+                // timeline scrolls under a single soft edge instead of separate bars.
+                <div
+                  aria-hidden
+                  className="surface-glass absolute inset-x-0 -top-6 bottom-0 -z-10 [--glass-opacity:70%] [mask-image:linear-gradient(to_bottom,transparent,black_3rem)]"
+                />
+              )}
               <div ref={draftHeroTransitionGroupRef} className="chat-composer-lane w-full">
                 <div
                   data-chat-composer-stack="true"
@@ -3613,7 +3620,6 @@ export default function ChatView(props: ChatViewProps) {
                         respondingRequestIds={respondingRequestIds}
                         disabled={!canOperateThread}
                         onRespondToApproval={onRespondToApprovalStable}
-                        backgroundWork={backgroundWork}
                       />
                     )}
                     <div className="relative">
@@ -3813,8 +3819,7 @@ export default function ChatView(props: ChatViewProps) {
                         <div className="min-h-0">
                           <div
                             data-terminal-open={terminalUiState.terminalOpen ? "true" : undefined}
-                            // The whole strip blurs the timeline scrolling under it, thin enough to show it.
-                            className="surface-glass relative z-0 flex min-w-0 items-start [--glass-opacity:55%]"
+                            className="relative z-0 flex min-w-0 items-start"
                           >
                             {showComposerContextStrip && (
                               <div className="pointer-events-auto min-w-0 flex-1">
@@ -3878,7 +3883,9 @@ export default function ChatView(props: ChatViewProps) {
                               <div
                                 ref={setComposerControlsHost}
                                 data-composer-controls-host
-                                className="pointer-events-auto ms-auto flex min-w-0 max-w-3/5 shrink-0 items-center pt-2 pe-1 empty:hidden"
+                                // A set width, not one that follows the controls: they measure it
+                                // to pick their labels, and a width that tracked them would loop.
+                                className="pointer-events-auto ms-auto flex w-3/5 min-w-0 shrink-0 items-center justify-end pt-2 pe-1 empty:hidden"
                               />
                             ) : null}
                           </div>
@@ -3895,11 +3902,7 @@ export default function ChatView(props: ChatViewProps) {
                     </div>
                     <div
                       aria-hidden
-                      // Continues the strip's glass to the bottom edge, so no timeline text shows below it.
-                      className={cn(
-                        "h-[calc(env(safe-area-inset-bottom)+1rem)] sm:h-[calc(env(safe-area-inset-bottom)+1.25rem)]",
-                        !isDraftHeroState && "surface-glass [--glass-opacity:55%]",
-                      )}
+                      className="h-[calc(env(safe-area-inset-bottom)+1rem)] sm:h-[calc(env(safe-area-inset-bottom)+1.25rem)]"
                     />
                   </div>
                 </div>

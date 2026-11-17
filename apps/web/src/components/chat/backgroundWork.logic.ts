@@ -123,12 +123,6 @@ export function backgroundWorkStatus(
   return row.waiting ? "waiting" : "running";
 }
 
-export const BACKGROUND_WORK_STATUS_LABEL: Record<BackgroundWorkStatus, string> = {
-  running: "Running",
-  waiting: "Waiting",
-  done: "Done",
-};
-
 /** The thread's background work, one card per task above the composer. */
 export interface BackgroundWork {
   readonly id: string;

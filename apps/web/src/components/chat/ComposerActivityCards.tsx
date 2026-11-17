@@ -9,8 +9,6 @@ import { InlineButton } from "../ui/button";
 import { Popover, PopoverPopup, PopoverTrigger } from "../ui/popover";
 import { ComposerBanner } from "./ComposerBanner";
 import { ComposerPendingApprovalActions } from "./ComposerPendingApprovalActions";
-import type { BackgroundWork } from "./backgroundWork.logic";
-import { BackgroundWorkCards } from "./BackgroundWorkCards";
 import { APPROVAL_PRESENTATION } from "./TimelinePendingApprovalRow";
 
 /** A pending approval, as its own card above the composer. */
@@ -102,16 +100,12 @@ function PendingApprovalCard({
   );
 }
 
-/**
- * What is live in the thread and needs a hand, stacked above the composer: approvals the agent is
- * waiting on, then background work.
- */
+/** Approvals the agent is waiting on, stacked above the composer. */
 export function ComposerActivityCards({
   approvals,
   respondingRequestIds,
   disabled,
   onRespondToApproval,
-  backgroundWork,
 }: {
   readonly approvals: ReadonlyArray<PendingApproval>;
   readonly respondingRequestIds: ReadonlyArray<RuntimeRequestId>;
@@ -120,9 +114,8 @@ export function ComposerActivityCards({
     requestId: RuntimeRequestId,
     decision: ProviderApprovalDecision,
   ) => Promise<unknown>;
-  readonly backgroundWork: BackgroundWork | null;
 }) {
-  if (approvals.length === 0 && backgroundWork === null) return null;
+  if (approvals.length === 0) return null;
   return (
     <div className="mx-auto mb-2 flex w-full min-w-0 max-w-(--chat-content-max-width) flex-col gap-2">
       {approvals.map((approval) => (
@@ -134,7 +127,6 @@ export function ComposerActivityCards({
           onRespondToApproval={onRespondToApproval}
         />
       ))}
-      {backgroundWork ? <BackgroundWorkCards work={backgroundWork} /> : null}
     </div>
   );
 }

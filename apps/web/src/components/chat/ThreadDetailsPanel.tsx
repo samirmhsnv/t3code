@@ -143,19 +143,12 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
                   showSideChats={visible.sideChats}
                 />
               ) : null,
-              <ThreadDetailsSection
+              <ThreadDetailsFilesTab
                 key="files"
-                headingId="thread-details-files-heading"
-                title="Uncommitted changes"
-                separated={false}
-                showHeading={false}
-              >
-                <ThreadDetailsFilesTab
-                  threadRef={activeThreadRef}
-                  gitCwd={props.isGitRepo ? props.gitCwd : null}
-                  onOpenChanges={props.onOpenChanges}
-                />
-              </ThreadDetailsSection>,
+                threadRef={activeThreadRef}
+                gitCwd={props.isGitRepo ? props.gitCwd : null}
+                onOpenChanges={props.onOpenChanges}
+              />,
             ]
       }
     >

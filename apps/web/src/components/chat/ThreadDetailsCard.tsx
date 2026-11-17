@@ -86,11 +86,17 @@ export function ThreadDetailsCard({
         mode === "popover" &&
           "max-h-[min(calc(100dvh-6.5rem),calc(var(--available-height,100dvh)-1rem))]",
       )}
-      style={placement ? { height } : undefined}
+      // Inline, the column fills its aside, which the window may stretch to its full height.
+      style={placement ? { height: "100%" } : undefined}
     >
       <div
         ref={setColumnElement}
-        className={cn("flex flex-col gap-3", placement && "min-h-full [&>*:last-child]:grow")}
+        className={cn(
+          "flex flex-col gap-3",
+          placement &&
+            // The last card that shows takes the rest; a card shows while it holds a section.
+            "min-h-full [&>[data-thread-details-card]:not(:has(~[data-thread-details-card]_section))]:grow",
+        )}
         onContextMenu={onContextMenu}
       >
         <div className={cardClassName} data-thread-details-card>
@@ -134,7 +140,7 @@ export function ThreadDetailsCard({
           data-workspace-focus-key={`details:${threadRef.environmentId}:${threadRef.threadId}`}
           // Skip the return transition to avoid overlapping the rising preview.
           className={cn(
-            "absolute z-20",
+            "absolute z-20 [-webkit-app-region:no-drag]",
             topInset > 0 && "transition-[top] duration-150 ease-out motion-reduce:transition-none",
           )}
           style={{

@@ -2334,6 +2334,17 @@ code {
   right: calc(var(--workspace-controls-right) + var(--thread-details-panel-width) + 0.5rem);
 }
 
+/* With no right panel, the inline details column runs the window's right edge from the top bar
+   to the status bar, beside the panel controls. */
+:root:not(:has([data-preview-panel-mode="inline"])) [data-thread-details-panel="inline"] {
+  position: fixed;
+  top: calc(var(--workspace-controls-top) + 0.5rem) !important;
+  right: var(--workspace-controls-right) !important;
+  bottom: calc(var(--app-status-bar-height) + 0.75rem);
+  height: auto !important;
+  max-height: none !important;
+}
+
 /* Chat width setting. Comfortable keeps the default --chat-content-max-width,
    which sizes the timeline lane, the composer, and ChatCanvas's width probe. */
 :root[data-chat-width="wide"] {
