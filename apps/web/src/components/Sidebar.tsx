@@ -561,10 +561,8 @@ function useSidebarThreads(input: {
     rest:
       folderGroups === null
         ? EMPTY_THREADS
-        : [
-            ...activeThreads.filter((thread) => !inPlayKeys.has(threadShellKey(thread))),
-            ...settledThreads,
-          ],
+        : // Settled threads stay in their folders only.
+          activeThreads.filter((thread) => !inPlayKeys.has(threadShellKey(thread))),
     laneOf: (thread) =>
       sidebarStreamLane(
         thread,
