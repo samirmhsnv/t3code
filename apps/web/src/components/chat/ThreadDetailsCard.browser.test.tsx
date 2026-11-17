@@ -43,18 +43,12 @@ function Card({
   inline,
   fixture,
   rows = 1,
-  automationRows = 0,
-  serverOverflowRows = 0,
 }: {
   threadRef: ScopedThreadRef;
   inline: boolean;
   fixture: ReturnType<typeof setup>;
-  /** Rows of 100px shown at full density. Compact always takes 50px. */
+  /** Rows of 100px, shown at full density. Compact would take 50px. */
   rows?: number;
-  /** Rows of 100px in an automations list shown at full density. */
-  automationRows?: number;
-  /** Rows of 100px that expanded server lists add, which density ignores. */
-  serverOverflowRows?: number;
 }) {
   return (
     // The web root renders in StrictMode, which re-runs ref callbacks on every mount.
@@ -72,27 +66,11 @@ function Card({
           detailsCardPlacement: inline ? placement : null,
         }}
       >
-        <ThreadDetailsCard
-          threadRef={threadRef}
-          anchor={fixture.anchor}
-          handle={fixture.handle}
-          contentKey={String(rows)}
-        >
+        <ThreadDetailsCard threadRef={threadRef} anchor={fixture.anchor} handle={fixture.handle}>
           {(density) => (
-            <>
-              <p style={{ height: density === "full" ? rows * 100 : 50 }}>
-                Details for {threadRef.threadId}
-              </p>
-              {density === "full" && automationRows > 0 ? (
-                <section data-thread-automations-panel style={{ height: automationRows * 100 }} />
-              ) : null}
-              {density === "full" && serverOverflowRows > 0 ? (
-                <div
-                  data-thread-details-server-overflow
-                  style={{ height: serverOverflowRows * 100 }}
-                />
-              ) : null}
-            </>
+            <p style={{ height: density === "full" ? rows * 100 : 50 }}>
+              Details for {threadRef.threadId}
+            </p>
           )}
         </ThreadDetailsCard>
       </ChatCanvasContext>
@@ -166,33 +144,14 @@ it("reopens after a normal close", async () => {
   await expect.element(page.getByText("Details for thread-b")).toBeVisible();
 });
 
-it("returns to full density when hidden items make the content fit", async () => {
-  using fixture = setup();
-  await using screen = await render(<Card threadRef={threadB} inline fixture={fixture} rows={6} />);
-  const card = page.getByRole("region", { name: "Thread details" });
-  await expect.element(card).toHaveAttribute("data-density", "compact");
-
-  await screen.rerender(<Card threadRef={threadB} inline fixture={fixture} rows={2} />);
-  await expect.element(card).toHaveAttribute("data-density", "full");
-});
-
-it("keeps full density when many automations make the content tall", async () => {
+it("keeps content taller than the column at full height and scrolls it", async () => {
   using fixture = setup();
   await using _screen = await render(
-    <Card threadRef={threadB} inline fixture={fixture} rows={2} automationRows={6} />,
+    <Card threadRef={threadB} inline fixture={fixture} rows={6} />,
   );
-  await expect.element(page.getByText("Details for thread-b")).toBeVisible();
-  await expect
-    .element(page.getByRole("region", { name: "Thread details" }))
-    .toHaveAttribute("data-density", "full");
-});
-
-it("stays full while expanded server rows overflow", async () => {
-  using fixture = setup();
-  await using _screen = await render(
-    <Card threadRef={threadB} inline fixture={fixture} rows={2} serverOverflowRows={4} />,
-  );
-  await expect
-    .element(page.getByRole("region", { name: "Thread details" }))
-    .toHaveAttribute("data-density", "full");
+  const details = page.getByText("Details for thread-b");
+  await expect.element(details).toBeVisible();
+  expect(details.element().getBoundingClientRect().height).toBe(600);
+  const card = page.getByRole("region", { name: "Thread details" }).element();
+  expect(card.getBoundingClientRect().height).toBeLessThanOrEqual(placement.height);
 });

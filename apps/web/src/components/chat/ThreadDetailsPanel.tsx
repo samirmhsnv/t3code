@@ -24,13 +24,12 @@ import {
   type ThreadDetailsUsageInput,
 } from "./ThreadDetailsUsage";
 import { ThreadDetailsItemsMenuItems } from "./ThreadDetailsItemsMenu";
-import { resolveThreadDetailsVisibility, THREAD_DETAILS_ITEMS } from "./threadDetailsItems";
+import { resolveThreadDetailsVisibility } from "./threadDetailsItems";
 import { useClientSettings } from "../../hooks/useSettings";
 import { useProject, useServerConfigs } from "../../state/entities";
 import { ThreadDetailsThreadPrRows } from "./ThreadDetailsPrRows";
 import { cn } from "../../lib/utils";
-import { EllipsisIcon, SlidersHorizontalIcon } from "lucide-react";
-import { Button } from "../ui/button";
+import { SlidersHorizontalIcon } from "lucide-react";
 import { ThreadDetailsControl } from "./ThreadDetailsControl";
 import {
   THREAD_DETAILS_PANEL_ICON_CLASS,
@@ -113,22 +112,6 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
       threadRef={{ environmentId: props.environmentId, threadId: props.threadId }}
       anchor={props.anchor}
       handle={props.handle}
-      headerActions={
-        <Button
-          size="icon-xs"
-          variant="ghost"
-          aria-label="Choose what to show"
-          onClick={(event) => {
-            const rect = event.currentTarget.getBoundingClientRect();
-            setMenuPosition({ x: rect.left, y: rect.bottom });
-          }}
-        >
-          <EllipsisIcon />
-        </Button>
-      }
-      contentKey={`${THREAD_DETAILS_ITEMS.filter((item) => visible[item.id])
-        .map((item) => item.id)
-        .join(",")}`}
       onContextMenu={(event) => {
         // Popups the card opens bubble here through React; they, fields, links, and selected text
         // keep their own menus.
