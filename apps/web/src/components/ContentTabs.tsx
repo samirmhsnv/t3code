@@ -41,7 +41,7 @@ export function ContentTabs({ children }: { children: ReactNode }) {
         aria-label="Content"
         data-content-tabs-nav
         className={cn(
-          "surface-glass flex h-[var(--workspace-topbar-height)] shrink-0 items-center gap-1 pl-(--workspace-gutter-start) pr-(--workspace-gutter-end)",
+          "surface-glass flex h-[var(--workspace-topbar-height)] shrink-0 [--glass-blur:20px] [--glass-opacity:55%] items-center gap-1 pl-(--workspace-gutter-start) pr-(--workspace-gutter-end)",
           // A hidden sidebar leaves its reopen button floating over this strip's start.
           "group-data-[sidebar-state=collapsed]/sidebar-wrapper:pl-(--workspace-titlebar-content-left)",
           isElectron && "drag-region",
