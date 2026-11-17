@@ -1,6 +1,6 @@
 import { useAtomValue } from "@effect/atom-react";
 import { useLocation, useNavigate } from "@tanstack/react-router";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 import { cn } from "~/lib/utils";
 import { isElectron } from "../env";
@@ -10,6 +10,7 @@ import { AttentionStrip } from "./attention/AttentionStrip";
 import { readPullRequestListPreferences } from "./pullRequest/pullRequestListPreferences";
 import { Badge } from "./ui/badge";
 import { useNavigateToMainApp } from "./sidebar/mainAppLocation";
+import { ContentTabsChatSlot } from "./contentTabsChatSlot";
 
 type ContentTab = "chat" | "issues" | "pull-requests";
 
@@ -27,6 +28,7 @@ export function ContentTabs({ children }: { children: ReactNode }) {
   const pullRequestCount = useAtomValue(openThreadLinkedPullRequestCountAtom);
   const issueCount = useIssueList().data?.issues.length ?? 0;
   const active = activeContentTab(pathname);
+  const [chatSlot, setChatSlot] = useState<HTMLElement | null>(null);
 
   return (
     // The page below sizes itself to the window; here it fills what the strip leaves.
@@ -40,11 +42,18 @@ export function ContentTabs({ children }: { children: ReactNode }) {
           isElectron && "drag-region",
         )}
       >
-        <ContentTabButton
-          label="Chat"
-          active={active === "chat"}
-          onClick={() => void navigateToMainApp()}
-        />
+        {active === "chat" ? (
+          // The open thread portals its project and title here; "Chat" shows until it does.
+          <div
+            aria-current="page"
+            className="inline-flex h-7 min-w-0 max-w-md shrink items-center rounded-md bg-accent px-2.5 text-sm font-medium text-foreground [-webkit-app-region:no-drag] has-[[data-chat-tab-slot]>*]:[&>[data-chat-tab-fallback]]:hidden"
+          >
+            <span data-chat-tab-fallback>Chat</span>
+            <div ref={setChatSlot} data-chat-tab-slot className="flex min-w-0" />
+          </div>
+        ) : (
+          <ContentTabButton label="Chat" active={false} onClick={() => void navigateToMainApp()} />
+        )}
         <ContentTabButton
           label="Issues"
           count={issueCount}
@@ -61,7 +70,7 @@ export function ContentTabs({ children }: { children: ReactNode }) {
         />
       </nav>
       <AttentionStrip />
-      {children}
+      <ContentTabsChatSlot value={chatSlot}>{children}</ContentTabsChatSlot>
     </div>
   );
 }

@@ -131,6 +131,8 @@ import {
   useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
+import { ContentTabsChatSlot } from "./contentTabsChatSlot";
 import { BackgroundThreadContext } from "./chat/backgroundThread";
 import { WorkspaceMutationIdContext } from "./chat/ChatMarkdownMedia";
 import { useLocation, useNavigate } from "@tanstack/react-router";
@@ -1132,6 +1134,10 @@ export default function ChatView(props: ChatViewProps) {
   const inlineRightPanelOwnsTitleBar = rightPanelOpen && !shouldUsePlanSidebarSheet;
   const [threadPanelPopoverHandle] = useState(PopoverCreateHandle);
   const [chatCanvasStore] = useState(createChatCanvasStore);
+  const chatTabSlot = use(ContentTabsChatSlot);
+  // With the breadcrumb in the Chat tab the row empties: the panel controls are fixed to the
+  // window, except the thread panel toggle beside an open inline panel, which sits in this row.
+  const headerCollapsed = chatTabSlot !== null && !inlineRightPanelOwnsTitleBar;
 
   const latestRunSettled = isLatestRunSettled(activeLatestRun, activeRuntime);
   const activeThreadEnvironmentId = activeThread?.environmentId;
@@ -3318,6 +3324,25 @@ export default function ChatView(props: ChatViewProps) {
     addFolders: addDroppedFoldersToComposer,
   });
 
+  const chatHeader = activeThread ? (
+    <ChatHeader
+      inTab={chatTabSlot !== null}
+      activeThreadEnvironmentId={activeThread.environmentId}
+      activeThreadId={activeThread.id}
+      isServerThread={isServerThread}
+      activeThreadTitle={activeThread.title}
+      activeThreadLinkOrigin={activeThreadShell?.linkOrigin?.label ?? null}
+      activeProject={activeProject ?? null}
+      parentThreadLink={headerParentThreadLink}
+      onOpenThread={onOpenRelatedThreadStable}
+      rightPanelOpen={inlineRightPanelOwnsTitleBar}
+      onNewThreadInProject={handleNewThreadInActiveProjectStable}
+      {...(activeDraftLogicalProjectKey
+        ? { onOpenProjectSettings: handleOpenDraftProjectSettingsStable }
+        : {})}
+      {...(threadFindEnabled ? { onFindInThread: openThreadFindStable } : {})}
+    />
+  ) : null;
   const content = (
     <div
       ref={setWorkspaceLayoutElement}
@@ -3345,18 +3370,22 @@ export default function ChatView(props: ChatViewProps) {
           <header
             ref={threadPanelPopoverAnchorRef}
             data-chat-header
-            className={cn(
-              "relative bg-background [[data-panel-animations=true]_&]:motion-safe:transition-[padding-left] [[data-panel-animations=true]_&]:motion-safe:duration-(--panel-animation-duration) [[data-panel-animations=true]_&]:motion-safe:ease-out",
-              isElectron
-                ? cn(
-                    "drag-region flex h-[var(--workspace-topbar-height)] min-h-[var(--workspace-topbar-height)] shrink-0 items-center px-3 sm:px-5",
-                    reserveTitleBarControlInset &&
-                      !inlineRightPanelOwnsTitleBar &&
-                      "wco:pr-(--workspace-native-controls-inset)",
+            className={
+              headerCollapsed
+                ? "relative h-0 shrink-0"
+                : cn(
+                    "relative bg-background [[data-panel-animations=true]_&]:motion-safe:transition-[padding-left] [[data-panel-animations=true]_&]:motion-safe:duration-(--panel-animation-duration) [[data-panel-animations=true]_&]:motion-safe:ease-out",
+                    isElectron
+                      ? cn(
+                          "drag-region flex h-[var(--workspace-topbar-height)] min-h-[var(--workspace-topbar-height)] shrink-0 items-center px-3 sm:px-5",
+                          reserveTitleBarControlInset &&
+                            !inlineRightPanelOwnsTitleBar &&
+                            "wco:pr-(--workspace-native-controls-inset)",
+                        )
+                      : "flex h-[var(--workspace-topbar-height)] min-h-[var(--workspace-topbar-height)] shrink-0 items-center pl-(--workspace-gutter-start) pr-(--workspace-gutter-end)",
+                    COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS,
                   )
-                : "flex h-[var(--workspace-topbar-height)] min-h-[var(--workspace-topbar-height)] shrink-0 items-center pl-(--workspace-gutter-start) pr-(--workspace-gutter-end)",
-              COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS,
-            )}
+            }
           >
             {isElectron && rightPanelControlsAtRoot ? (
               <span
@@ -3366,22 +3395,7 @@ export default function ChatView(props: ChatViewProps) {
             ) : null}
             {!rightPanelControlsAtRoot && !rightPanelControlsInPanel ? panelLayoutControls : null}
             {inlineRightPanelOwnsTitleBar ? threadPanelHeaderControl : null}
-            <ChatHeader
-              activeThreadEnvironmentId={activeThread.environmentId}
-              activeThreadId={activeThread.id}
-              isServerThread={isServerThread}
-              activeThreadTitle={activeThread.title}
-              activeThreadLinkOrigin={activeThreadShell?.linkOrigin?.label ?? null}
-              activeProject={activeProject ?? null}
-              parentThreadLink={headerParentThreadLink}
-              onOpenThread={onOpenRelatedThreadStable}
-              rightPanelOpen={inlineRightPanelOwnsTitleBar}
-              onNewThreadInProject={handleNewThreadInActiveProjectStable}
-              {...(activeDraftLogicalProjectKey
-                ? { onOpenProjectSettings: handleOpenDraftProjectSettingsStable }
-                : {})}
-              {...(threadFindEnabled ? { onFindInThread: openThreadFindStable } : {})}
-            />
+            {chatTabSlot !== null ? createPortal(chatHeader, chatTabSlot) : chatHeader}
           </header>
         )}
 

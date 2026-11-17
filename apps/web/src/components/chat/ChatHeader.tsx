@@ -57,6 +57,8 @@ interface ChatHeaderProps {
   onNewThreadInProject: () => void;
   onOpenProjectSettings?: (() => void) | undefined;
   onFindInThread?: ((threadRef: ScopedThreadRef) => void) | undefined;
+  /** Rendered inside the Chat tab, so it sizes to its content. */
+  inTab?: boolean;
 }
 
 function resolveRenameCommit(input: {
@@ -82,6 +84,7 @@ export const ChatHeader = memo(function ChatHeader({
   onNewThreadInProject,
   onOpenProjectSettings,
   onFindInThread,
+  inTab = false,
 }: ChatHeaderProps) {
   const activeProjectName = activeProject?.isScratch ? "No project" : activeProject?.title;
   const activeProjectCwd = activeProject?.workspaceRoot ?? null;
@@ -250,14 +253,15 @@ export const ChatHeader = memo(function ChatHeader({
     <div
       ref={breadcrumbContainerRef}
       className={cn(
-        "flex min-w-0 flex-1 items-center gap-2 sm:gap-3",
-        rightPanelOpen ? "pr-10" : "pr-24",
+        "flex min-w-0 items-center gap-2 sm:gap-3",
+        !inTab && "flex-1",
+        !inTab && (rightPanelOpen ? "pr-10" : "pr-24"),
       )}
       onContextMenu={handleHeaderContextMenu}
     >
       <WorkspaceBreadcrumb
         ariaLabel="Thread breadcrumb"
-        className="flex-1 overflow-clip [overflow-clip-margin:2px]"
+        className={cn("overflow-clip [overflow-clip-margin:2px]", !inTab && "flex-1")}
       >
         {activeProject ? (
           <>
@@ -323,7 +327,7 @@ export const ChatHeader = memo(function ChatHeader({
             </WorkspaceBreadcrumbSeparator>
           </>
         ) : null}
-        <WorkspaceBreadcrumbItem current className="min-w-10 flex-1">
+        <WorkspaceBreadcrumbItem current className={cn("min-w-10", !inTab && "flex-1")}>
           {renamingTitle !== null ? (
             <input
               autoFocus
