@@ -353,12 +353,7 @@ function NestedRepoChanges({
   );
   return (
     <div className="flex flex-col gap-3 px-4 py-3 text-xs">
-      <div className="flex flex-col gap-0.5">
-        <span className="text-sm font-medium">Changes in repos</span>
-        <span className="text-muted-foreground">
-          Uncommitted changes in each repository now, not only this thread's.
-        </span>
-      </div>
+      <span className="text-sm font-medium">Changes in repos</span>
       {repos.map((repo) => (
         <div key={repo.path} className="flex flex-col">
           <span className="flex min-w-0 items-center gap-1.5 py-0.5">
@@ -366,9 +361,6 @@ function NestedRepoChanges({
             <span className="truncate font-mono font-medium">
               {repo.path === "" ? projectTitle : repo.path}
             </span>
-            {repo.branch !== null ? (
-              <span className="min-w-0 truncate text-muted-foreground">{repo.branch}</span>
-            ) : null}
             <span className="flex-1" />
             <LineCounts additions={repo.insertions} deletions={repo.deletions} />
           </span>
