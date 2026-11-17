@@ -577,8 +577,8 @@ type SidebarThreadRowProps = {
   thread: SidebarThreadSummary;
   // "folder" is a one-line row inside a boring sidebar project folder;
   // "folder-multiline" adds the card's branch and PR line under it.
-  // "stream" is the two-line in-play card; "recent" a one-line row with its project tag.
-  variant: "card" | "slim" | "folder" | "folder-multiline" | "stream" | "recent";
+  // "stream" is the two-line in-play card.
+  variant: "card" | "slim" | "folder" | "folder-multiline" | "stream";
   navigationParent?: string | undefined;
   variantAction: SidebarSweepAction;
   settlementSupported: boolean;
@@ -1408,7 +1408,6 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
 
   if (variant !== "card") {
     const multiline = variant === "folder-multiline";
-    const recent = variant === "recent";
     const inFolder = variant === "folder" || multiline;
     return (
       <li
@@ -1432,13 +1431,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                 data-sidebar-parent={props.navigationParent}
                 aria-label={accessibility.label}
                 aria-current={accessibility.current}
-                data-testid={
-                  inFolder
-                    ? "sidebar-row-folder"
-                    : recent
-                      ? "sidebar-row-recent"
-                      : "sidebar-row-slim"
-                }
+                data-testid={inFolder ? "sidebar-row-folder" : "sidebar-row-slim"}
                 aria-busy={isRegeneratingTitle || undefined}
                 className={cn(
                   rowSurfaceClassName,
@@ -1447,7 +1440,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                     : "flex h-9 items-center gap-2.5 px-2.5",
                   // Lines titles up with the folder name, past its chevron and icon.
                   inFolder && "ps-9",
-                  (variant === "folder" || recent) && "gap-2 ps-2.5",
+                  variant === "folder" && "gap-2 ps-2.5",
                   variant === "folder" &&
                     variantAction === "unsettle" &&
                     // Grayscale skips the pipeline bars, whose colors carry the PR stage.
@@ -1462,7 +1455,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
           >
             {/* `contents` keeps one-line rows a single flex row. */}
             <div className={multiline ? "flex h-6 min-w-0 items-center gap-2.5" : "contents"}>
-              {inFolder || recent ? null : (
+              {inFolder ? null : (
                 <span
                   className={cn(
                     "flex shrink-0 items-center transition-opacity",
@@ -1475,11 +1468,6 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                   ) : null}
                 </span>
               )}
-              {recent ? (
-                <span className="inline-flex size-4 shrink-0 items-center justify-center">
-                  <FolderStatusGlyph status={status} isUnread={isUnread} />
-                </span>
-              ) : null}
               {variant === "folder" ? (
                 <>
                   <span className="inline-flex shrink-0 items-center text-sidebar-muted-foreground/70">
@@ -1500,17 +1488,6 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                 <>
                   <SidebarThreadRoleTag thread={thread} />
                   <SidebarThreadPipeline thread={thread} />
-                </>
-              ) : null}
-              {recent ? (
-                <>
-                  <SidebarThreadPipeline thread={thread} />
-                  {props.projectDisplayName ? (
-                    // The title keeps the room; a long owner/repo tag shrinks to its repo name.
-                    <span className="min-w-0 max-w-20 shrink-[2] truncate rounded-sm bg-sidebar-row-hover px-1.5 text-2xs leading-4 text-secondary-label">
-                      {props.projectDisplayName.split("/").pop()}
-                    </span>
-                  ) : null}
                 </>
               ) : null}
               {multiline ? titleLineIcons : null}

@@ -3,7 +3,6 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   buildSidebarStream,
   orderSidebarProjectFolders,
-  SIDEBAR_RECENT_COUNT,
   sidebarActivityDayBuckets,
   sidebarStreamActivity,
   sidebarStreamLane,
@@ -45,46 +44,17 @@ describe("sidebarStreamLane", () => {
 });
 
 describe("buildSidebarStream", () => {
-  type T = { id: string; lane: "needs-you" | "working" | "unread"; at: number };
-  const build = (inPlay: T[], rest: T[], recentExpanded = false) =>
-    buildSidebarStream({
-      inPlay,
-      rest,
+  it("splits in-play threads into cards and leaves unread ones out", () => {
+    const stream = buildSidebarStream({
+      inPlay: [
+        { id: "approve", lane: "needs-you" as const },
+        { id: "run", lane: "working" as const },
+        { id: "done", lane: "unread" as const },
+      ],
       laneOf: (thread) => thread.lane,
-      activityMsOf: (thread) => thread.at,
-      recentExpanded,
     });
-
-  it("splits in-play threads and leads Recent with unread ones", () => {
-    const stream = build(
-      [
-        { id: "approve", lane: "needs-you", at: 1 },
-        { id: "run", lane: "working", at: 2 },
-        { id: "done-old", lane: "unread", at: 3 },
-        { id: "done-new", lane: "unread", at: 9 },
-      ],
-      [
-        { id: "a", lane: "unread", at: 5 },
-        { id: "b", lane: "unread", at: 8 },
-      ],
-    );
     expect(stream.needsYou.map((thread) => thread.id)).toEqual(["approve"]);
     expect(stream.working.map((thread) => thread.id)).toEqual(["run"]);
-    expect(stream.recent.map((thread) => thread.id)).toEqual(["done-new", "done-old", "b", "a"]);
-    expect(stream.hasOlderRecent).toBe(false);
-  });
-
-  it("caps settled threads in Recent until expanded", () => {
-    const rest = Array.from({ length: SIDEBAR_RECENT_COUNT + 3 }, (_, index) => ({
-      id: `t${index}`,
-      lane: "unread" as const,
-      at: index,
-    }));
-    const collapsed = build([], rest);
-    expect(collapsed.recent).toHaveLength(SIDEBAR_RECENT_COUNT);
-    expect(collapsed.recent[0]?.id).toBe(`t${SIDEBAR_RECENT_COUNT + 2}`);
-    expect(collapsed.hasOlderRecent).toBe(true);
-    expect(build([], rest, true).recent).toHaveLength(rest.length);
   });
 });
 

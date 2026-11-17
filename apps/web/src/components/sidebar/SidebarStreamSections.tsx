@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { ChevronDownIcon } from "lucide-react";
 
 import { cn } from "~/lib/utils";
 
@@ -69,36 +68,6 @@ export function SidebarEnvironmentFilter(props: {
           );
         })}
       </div>
-    </li>
-  );
-}
-
-/** A chevron row that reveals more of a section in place. */
-export function SidebarStreamToggleRow(props: {
-  rowId: string;
-  expanded: boolean;
-  label: string;
-  detail?: string | undefined;
-  onToggle: () => void;
-}) {
-  return (
-    <li className="list-none">
-      <button
-        type="button"
-        data-sidebar-row={props.rowId}
-        aria-expanded={props.expanded}
-        onClick={props.onToggle}
-        className="flex h-8 w-full cursor-pointer items-center gap-2 rounded-md px-(--sidebar-row-content-inset) text-left text-sm text-sidebar-muted-foreground outline-none hover:bg-sidebar-row-hover hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-      >
-        <ChevronDownIcon
-          aria-hidden
-          className={cn("size-3.5 shrink-0", !props.expanded && "-rotate-90")}
-        />
-        <span className="shrink-0">{props.label}</span>
-        {props.detail ? (
-          <span className="min-w-0 flex-1 truncate text-right text-xs">{props.detail}</span>
-        ) : null}
-      </button>
     </li>
   );
 }

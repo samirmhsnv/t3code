@@ -258,7 +258,6 @@ import {
 import {
   SidebarEnvironmentFilter,
   SidebarStreamHeader,
-  SidebarStreamToggleRow,
   type SidebarEnvironmentFilterOption,
 } from "./sidebar/SidebarStreamSections";
 import {
@@ -322,11 +321,9 @@ const sidebarProviderEntriesAtom = Atom.make((get) => {
 
 const EMPTY_PROVIDER_ENTRIES: ReadonlyMap<string, SidebarProviderEntry> = new Map();
 const EMPTY_THREADS: readonly EnvironmentThreadShell[] = [];
-// Tree parents for the stream's card and Recent rows above the project folders.
+// Tree parents for the stream's card rows above the project folders.
 const NEEDS_YOU_ROW_PARENT = "stream:needs-you";
 const WORKING_ROW_PARENT = "stream:working";
-const RECENT_ROW_PARENT = "stream:recent";
-const RECENT_EXPANDED_KEY = "t3code:sidebar:recent-expanded";
 const ENVIRONMENT_FILTER_KEY = "t3code:sidebar:environment-filter";
 
 const SETTLED_TAIL_INITIAL_COUNT = 10;
@@ -466,11 +463,6 @@ function useSidebarThreads(input: {
     false,
     Schema.Boolean,
   );
-  const [recentExpanded, setRecentExpanded] = useLocalStorage(
-    RECENT_EXPANDED_KEY,
-    false,
-    Schema.Boolean,
-  );
   // Shared with the old per-project sidebar, so folders keep their open state.
   const projectExpandedById = useUiStateStore((store) => store.projectExpandedById);
   const threadLastVisitedAtById = useUiStateStore((store) => store.threadLastVisitedAtById);
@@ -545,14 +537,8 @@ function useSidebarThreads(input: {
   const nowMs = Date.parse(`${nowMinute}:00.000Z`);
   const activityMsOf = (thread: EnvironmentThreadShell) =>
     firstValidTimestampMs(resolveThreadActivityTimestamp(thread), thread.updatedAt);
-  const inPlayKeys = new Set(inPlayThreads.map(threadShellKey));
   const stream = buildSidebarStream({
     inPlay: inPlayThreads,
-    rest:
-      folderGroups === null
-        ? EMPTY_THREADS
-        : // Settled threads stay in their folders only.
-          activeThreads.filter((thread) => !inPlayKeys.has(threadShellKey(thread))),
     laneOf: (thread) =>
       sidebarStreamLane(
         thread,
@@ -564,8 +550,6 @@ function useSidebarThreads(input: {
           ),
         }),
       ),
-    activityMsOf,
-    recentExpanded,
   });
   // Finished-unread threads stay in their folders; only cards leave them.
   const cardKeys = new Set([...stream.needsYou, ...stream.working].map(threadShellKey));
@@ -657,8 +641,6 @@ function useSidebarThreads(input: {
     toggleWorkingShelf: () => setWorkingShelfExpanded((value) => !value),
     projectFolders,
     stream,
-    recentExpanded,
-    toggleRecent: () => setRecentExpanded((value) => !value),
     toggleProjectFolder: (group: SidebarProjectSnapshot) => {
       const keys = sidebarFolderExpansionKeys(group);
       setProjectExpanded(keys, !resolveProjectExpanded(projectExpandedById, keys));
@@ -1077,8 +1059,6 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       ? scopedThreadKey(renamingThreadRef)
       : null;
   const [renamingTitle, setRenamingTitle] = useState("");
-  // A thread can show twice (Recent and its folder); only the row the rename began in edits.
-  const [renamingInRecent, setRenamingInRecent] = useState(false);
   const renamingOriginalTitleRef = useRef("");
   const settlingThreadKeysRef = useRef(new Set<string>());
   const threadListRef = useRef<HTMLUListElement | null>(null);
@@ -1371,8 +1351,6 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     toggleWorkingShelf,
     projectFolders,
     stream,
-    recentExpanded,
-    toggleRecent,
     toggleProjectFolder,
     renderedSettledThreads,
     visibleSnoozedThreads,
@@ -1592,11 +1570,6 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     setRenamingThreadRef(threadRef);
     setRenamingTitle(title);
     renamingOriginalTitleRef.current = title;
-    setRenamingInRecent(false);
-  });
-  const startRecentThreadRename = useStableCallback((threadRef: ScopedThreadRef, title: string) => {
-    startThreadRename(threadRef, title);
-    setRenamingInRecent(true);
   });
   const cancelThreadRename = () => setRenamingThreadRef(null);
   const commitThreadRename = (threadRef: ScopedThreadRef, title: string) => {
@@ -2070,7 +2043,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     projectFolders
       ?.map((folder) => `${folder.group.projectKey}:${folder.threads.length}`)
       .join("\n") ?? "",
-    [...stream.needsYou, ...stream.working, ...stream.recent].map(threadShellKey).join("\n"),
+    [...stream.needsYou, ...stream.working].map(threadShellKey).join("\n"),
     visibleDraftSessionCount,
     routeDraftIdForRows ?? "",
   ].join("\0");
@@ -3238,35 +3211,31 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                         section: SidebarSection,
                         // The tree row of the project folder or stream section this row sits in.
                         folderRow?: string,
-                        // Stream rows above the folders; a Recent row repeats one in its folder.
-                        streamRow?: "card" | "recent",
+                        // Card rows above the folders.
+                        streamRow?: "card",
                       ) => {
                         const threadKey = scopedThreadKey(
                           scopeThreadRef(thread.environmentId, thread.id),
                         );
-                        const isRecentCopy = streamRow === "recent";
                         const isCard =
                           section === "active" || section === "pinned" || section === "working";
                         const rowVariant =
                           streamRow === "card"
                             ? "stream"
-                            : isRecentCopy
-                              ? "recent"
-                              : folderRow
-                                ? folderRowsMultiline
-                                  ? "folder-multiline"
-                                  : "folder"
-                                : isCard
-                                  ? "card"
-                                  : "slim";
-                        const isRevealRow = routeRowThreadKey === threadKey && !isRecentCopy;
+                            : folderRow
+                              ? folderRowsMultiline
+                                ? "folder-multiline"
+                                : "folder"
+                              : isCard
+                                ? "card"
+                                : "slim";
+                        const isRevealRow = routeRowThreadKey === threadKey;
                         return (
                           <SortableThreadRow
-                            key={isRecentCopy ? `recent:${threadKey}` : threadKey}
-                            sortableId={isRecentCopy ? `recent:${threadKey}` : threadKey}
+                            key={threadKey}
+                            sortableId={threadKey}
                             contextDrag={isContextDrag}
                             sortableDisabled={
-                              isRecentCopy ||
                               renamingThreadKey === threadKey ||
                               !draggableThreadKeys.has(threadKey) ||
                               optimisticDrop !== null
@@ -3316,9 +3285,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                             isRouteThread={routeThreadKey === threadKey}
                             readOpensPullRequestsInRightPanel={readOpensPullRequestsInRightPanel}
                             jumpLabel={
-                              showJumpHints && !isRecentCopy
-                                ? (jumpLabelByKey.get(threadKey) ?? null)
-                                : null
+                              showJumpHints ? (jumpLabelByKey.get(threadKey) ?? null) : null
                             }
                             currentEnvironmentId={primaryEnvironmentId}
                             environmentLabel={
@@ -3344,15 +3311,11 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                             timestampFormat={timestampFormat}
                             onThreadClick={handleThreadClick}
                             onThreadActivate={navigateToThread}
-                            onStartRename={
-                              isRecentCopy ? startRecentThreadRename : startThreadRename
-                            }
+                            onStartRename={startThreadRename}
                             onRenameTitleChange={setRenamingTitle}
                             onCommitRename={commitThreadRename}
                             onCancelRename={cancelThreadRename}
-                            isRenaming={
-                              renamingThreadKey === threadKey && renamingInRecent === isRecentCopy
-                            }
+                            isRenaming={renamingThreadKey === threadKey}
                             renamingTitle={renamingThreadKey === threadKey ? renamingTitle : ""}
                             onContextMenu={handleThreadContextMenu}
                             onSettle={attemptSettle}
@@ -3411,40 +3374,6 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                             );
                             for (const thread of sectionThreads) {
                               items.push(renderThreadRow(thread, "active", parent, "card"));
-                            }
-                          }
-                          if (stream.recent.length > 0) {
-                            items.push(
-                              <SidebarStreamHeader
-                                key="stream-header:recent"
-                                label="Recent"
-                                count={stream.recent.length}
-                              />,
-                            );
-                            for (const thread of stream.recent) {
-                              items.push(
-                                renderThreadRow(
-                                  thread,
-                                  settledThreadKeys.has(threadShellKey(thread))
-                                    ? "settled"
-                                    : "active",
-                                  RECENT_ROW_PARENT,
-                                  "recent",
-                                ),
-                              );
-                            }
-                            if (stream.hasOlderRecent) {
-                              items.push(
-                                <SidebarStreamToggleRow
-                                  key="stream-recent-older"
-                                  rowId="stream:recent-older"
-                                  expanded={recentExpanded}
-                                  label={
-                                    recentExpanded ? "Show fewer threads" : "Show older threads"
-                                  }
-                                  onToggle={toggleRecent}
-                                />,
-                              );
                             }
                           }
                           const folderCount = projectFolders.length;

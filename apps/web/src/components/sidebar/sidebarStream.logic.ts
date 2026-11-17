@@ -3,8 +3,6 @@ import type { SidebarThreadStatus } from "../Sidebar.logic";
 /** Where an in-play thread sits in the one-stream sidebar. */
 export type SidebarStreamLane = "needs-you" | "working" | "unread";
 
-export const SIDEBAR_RECENT_COUNT = 5;
-const SIDEBAR_RECENT_EXPANDED_COUNT = 25;
 const SIDEBAR_ACTIVITY_DAYS = 7;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -38,33 +36,19 @@ export function sidebarStreamLane(
   }
 }
 
-/**
- * Splits threads into the stream's sections. In-play threads become Needs you,
- * Working, or the unread head of Recent; the rest fill Recent by latest activity.
- */
+/** Splits in-play threads into the Needs you and Working cards; unread ones stay in their folders. */
 export function buildSidebarStream<T>(input: {
   readonly inPlay: readonly T[];
-  readonly rest: readonly T[];
   readonly laneOf: (thread: T) => SidebarStreamLane;
-  readonly activityMsOf: (thread: T) => number;
-  readonly recentExpanded: boolean;
 }) {
   const needsYou: T[] = [];
   const working: T[] = [];
-  const unread: T[] = [];
   for (const thread of input.inPlay) {
     const lane = input.laneOf(thread);
-    (lane === "needs-you" ? needsYou : lane === "working" ? working : unread).push(thread);
+    if (lane === "needs-you") needsYou.push(thread);
+    else if (lane === "working") working.push(thread);
   }
-  const byActivity = (left: T, right: T) => input.activityMsOf(right) - input.activityMsOf(left);
-  const older = input.rest.toSorted(byActivity);
-  const limit = input.recentExpanded ? SIDEBAR_RECENT_EXPANDED_COUNT : SIDEBAR_RECENT_COUNT;
-  return {
-    needsYou,
-    working,
-    recent: [...unread.toSorted(byActivity), ...older.slice(0, limit)],
-    hasOlderRecent: older.length > SIDEBAR_RECENT_COUNT,
-  };
+  return { needsYou, working };
 }
 
 /** Orders folders by their latest thread activity; pinned folders lead and archived ones trail. */
