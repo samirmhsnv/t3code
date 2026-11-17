@@ -3895,7 +3895,11 @@ export default function ChatView(props: ChatViewProps) {
                     </div>
                     <div
                       aria-hidden
-                      className="h-[calc(env(safe-area-inset-bottom)+1rem)] sm:h-[calc(env(safe-area-inset-bottom)+1.25rem)]"
+                      // Continues the strip's glass to the bottom edge, so no timeline text shows below it.
+                      className={cn(
+                        "h-[calc(env(safe-area-inset-bottom)+1rem)] sm:h-[calc(env(safe-area-inset-bottom)+1.25rem)]",
+                        !isDraftHeroState && "surface-glass",
+                      )}
                     />
                   </div>
                 </div>
