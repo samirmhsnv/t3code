@@ -1,5 +1,4 @@
 import { scopedThreadKey, scopeThreadRef } from "@t3tools/client-runtime/environment";
-import { threadRuntimeIsActive } from "@t3tools/client-runtime/state/shell";
 import type { EnvironmentId, ThreadId } from "@t3tools/contracts";
 import { ArrowUpRightIcon, SquareIcon, TerminalIcon } from "lucide-react";
 import { useState, type ReactNode } from "react";
@@ -85,10 +84,7 @@ function SubagentDetails(props: {
   const childRef = scopeThreadRef(props.environmentId, childThreadId);
   const shell = useQuietThreadShell(childRef);
   const providerInstanceId = row.providerInstanceId ?? shell?.providerInstanceId ?? null;
-  const status = backgroundWorkStatus(
-    row,
-    shell === null ? null : threadRuntimeIsActive(shell.runtime),
-  );
+  const status = backgroundWorkStatus(row, shell?.runtime?.status ?? null);
   return (
     <>
       <DetailsHeader

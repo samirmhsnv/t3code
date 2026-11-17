@@ -61,9 +61,11 @@ describe("deriveBackgroundWorkRows", () => {
 });
 
 describe("backgroundWorkStatus", () => {
-  it("marks a subagent done once its thread is idle", () => {
-    expect(backgroundWorkStatus({ waiting: true }, false)).toBe("done");
-    expect(backgroundWorkStatus({ waiting: true }, true)).toBe("waiting");
+  it("marks a subagent done only once its own run finished", () => {
+    expect(backgroundWorkStatus({ waiting: true }, "completed")).toBe("done");
+    expect(backgroundWorkStatus({ waiting: true }, "running")).toBe("waiting");
+    // A native subagent's mirrored thread has no runs while it works.
+    expect(backgroundWorkStatus({ waiting: false }, "idle")).toBe("running");
     expect(backgroundWorkStatus({ waiting: false }, null)).toBe("running");
   });
 });

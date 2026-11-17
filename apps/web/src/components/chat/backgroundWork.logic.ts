@@ -103,12 +103,23 @@ export function splitBackgroundWorkRows<T>(rows: ReadonlyArray<T>): {
 
 export type BackgroundWorkStatus = "running" | "waiting" | "done";
 
-/** A subagent whose thread went idle is done, even before its parent hears back. */
+const FINISHED_RUN_STATUSES = new Set([
+  "completed",
+  "interrupted",
+  "failed",
+  "cancelled",
+  "rolled_back",
+]);
+
+/**
+ * A subagent whose own run finished is done, even before its parent hears back.
+ * A native subagent's thread mirrors the parent and has no runs, so "idle" proves nothing.
+ */
 export function backgroundWorkStatus(
   row: Pick<BackgroundWorkRow, "waiting">,
-  childThreadActive: boolean | null,
+  childRuntimeStatus: string | null,
 ): BackgroundWorkStatus {
-  if (childThreadActive === false) return "done";
+  if (childRuntimeStatus !== null && FINISHED_RUN_STATUSES.has(childRuntimeStatus)) return "done";
   return row.waiting ? "waiting" : "running";
 }
 

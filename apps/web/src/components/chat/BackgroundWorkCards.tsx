@@ -1,5 +1,4 @@
 import { scopeThreadRef } from "@t3tools/client-runtime/environment";
-import { threadRuntimeIsActive } from "@t3tools/client-runtime/state/shell";
 import { cn } from "~/lib/utils";
 
 import { useQuietThreadShell } from "../../state/entities";
@@ -28,7 +27,7 @@ function useBackgroundWorkRowState(work: BackgroundWork, row: BackgroundWorkRow)
   return {
     title: child?.title || row.label,
     mono: child === null && row.labelIsCommand,
-    status: backgroundWorkStatus(row, child === null ? null : threadRuntimeIsActive(child.runtime)),
+    status: backgroundWorkStatus(row, child?.runtime?.status ?? null),
   };
 }
 
