@@ -2351,6 +2351,13 @@ code {
   top: 0;
   z-index: 30;
 }
+/* The pinned details column owns the window's right edge, so the floating bar stops at it. */
+[data-content-tabs]:has([data-chat-canvas]):has([data-thread-details-panel="inline"]):not(
+    :has([data-preview-panel-mode="inline"], [aria-label="Needs attention"])
+  )
+  > [data-content-tabs-nav] {
+  inset-inline-end: calc(var(--workspace-controls-right) + var(--thread-details-panel-width));
+}
 
 /* With no right panel, the inline details column runs the window's right edge from the top bar
    to the status bar, beside the panel controls. */
