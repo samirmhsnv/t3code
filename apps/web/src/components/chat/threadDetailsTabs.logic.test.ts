@@ -5,12 +5,11 @@ import {
 } from "@t3tools/shared/pullRequestAnchor";
 import { describe, expect, it } from "vite-plus/test";
 
-import type { TurnDiffSummary } from "../../types";
 import {
   changeBarQuarters,
   parsePatchFileStats,
   pullRequestFileUrl,
-  summarizeThreadChanges,
+  groupUncommittedFiles,
   threadNowNext,
   threadPullRequestFileGroups,
 } from "./threadDetailsTabs.logic";
@@ -72,65 +71,27 @@ describe("threadNowNext", () => {
   });
 });
 
-function checkpoint(
-  turn: number,
-  files: TurnDiffSummary["files"],
-  extra: Partial<TurnDiffSummary> = {},
-): TurnDiffSummary {
-  return {
-    checkpointTurnCount: turn,
-    status: "ready",
-    files,
-    ...extra,
-  } as unknown as TurnDiffSummary;
-}
-
-describe("summarizeThreadChanges", () => {
-  it("sums each path across turns, groups by folder and lists turns newest first", () => {
-    const changes = summarizeThreadChanges([
-      checkpoint(1, [
-        { path: "src/a.ts", kind: "added", additions: 10, deletions: 0 },
-        { path: "README.md", kind: "modified", additions: 1, deletions: 1 },
+describe("groupUncommittedFiles", () => {
+  it("groups files by folder in path order", () => {
+    expect(
+      groupUncommittedFiles([
+        { path: "src/b.ts", insertions: 5, deletions: 0 },
+        { path: "README.md", insertions: 1, deletions: 1 },
+        { path: "src/a.ts", insertions: 2, deletions: 3 },
       ]),
-      checkpoint(2, [{ path: "src/a.ts", kind: "modified", additions: 2, deletions: 3 }]),
-      checkpoint(3, [{ path: "src/b.ts", kind: "added", additions: 5, deletions: 0 }], {
-        status: "missing",
-      }),
+    ).toEqual([
+      {
+        directory: "",
+        files: [{ path: "README.md", name: "README.md", additions: 1, deletions: 1 }],
+      },
+      {
+        directory: "src/",
+        files: [
+          { path: "src/a.ts", name: "a.ts", additions: 2, deletions: 3 },
+          { path: "src/b.ts", name: "b.ts", additions: 5, deletions: 0 },
+        ],
+      },
     ]);
-    expect(changes).toEqual({
-      files: 2,
-      additions: 13,
-      deletions: 4,
-      directories: [
-        {
-          directory: "",
-          files: [
-            { path: "README.md", name: "README.md", kind: "modified", additions: 1, deletions: 1 },
-          ],
-        },
-        {
-          directory: "src/",
-          files: [
-            { path: "src/a.ts", name: "a.ts", kind: "modified", additions: 12, deletions: 3 },
-          ],
-        },
-      ],
-      turns: [
-        { turn: 2, files: 1, additions: 2, deletions: 3 },
-        { turn: 1, files: 2, additions: 11, deletions: 1 },
-      ],
-      partial: false,
-    });
-  });
-
-  it("takes a turn's totals from filesTotal when only a prefix of files was sent", () => {
-    const changes = summarizeThreadChanges([
-      checkpoint(1, [{ path: "a.ts", kind: "added", additions: 1, deletions: 0 }], {
-        filesTotal: { count: 40, additions: 900, deletions: 12 },
-      }),
-    ]);
-    expect(changes.turns).toEqual([{ turn: 1, files: 40, additions: 900, deletions: 12 }]);
-    expect(changes.partial).toBe(true);
   });
 });
 

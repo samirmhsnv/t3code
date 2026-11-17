@@ -20,10 +20,10 @@ import {
   useQuietThreadProjection,
   useQuietThreadShell,
   useServerConfigs,
-  useThreadCheckpointSummaries,
 } from "~/state/entities";
 import { useNestedRepoChanges } from "~/state/projectRepositories";
 import { pullRequestEnvironment } from "~/state/pullRequests";
+import { vcsEnvironment } from "~/state/vcs";
 import {
   useEnvironmentQuery,
   useEnvironmentQueryIsNewer,
@@ -46,10 +46,9 @@ import {
   changeBarQuarters,
   parsePatchFileStats,
   pullRequestFileUrl,
-  summarizeThreadChanges,
+  groupUncommittedFiles,
   threadNowNext,
   threadPullRequestFileGroups,
-  type ThreadChangedFile,
 } from "./threadDetailsTabs.logic";
 
 function DetailsRow({ label, children }: { label: string; children: ReactNode }) {
@@ -622,43 +621,52 @@ function ThreadDetailsFilesFallback({ threadRef }: { threadRef: ScopedThreadRef 
   );
 }
 
-/** Every file the thread changed, from its turn checkpoints, with a per-turn breakdown. */
+/** The working tree's uncommitted files; without a repository, nested repos or PR files. */
 export function ThreadDetailsFilesTab({
   threadRef,
+  gitCwd,
   onOpenChanges,
 }: {
   threadRef: ScopedThreadRef;
+  gitCwd: string | null;
   onOpenChanges?: (() => void) | undefined;
 }) {
-  const changes = summarizeThreadChanges(useThreadCheckpointSummaries(threadRef));
-  if (changes.files === 0) return <ThreadDetailsFilesFallback threadRef={threadRef} />;
-  const largest = Math.max(
-    ...changes.directories.flatMap((directory) =>
-      directory.files.map((file: ThreadChangedFile) => file.additions + file.deletions),
-    ),
-  );
-  const total = changes.additions + changes.deletions;
+  const status = useEnvironmentQuery(
+    gitCwd === null
+      ? null
+      : vcsEnvironment.status({ environmentId: threadRef.environmentId, input: { cwd: gitCwd } }),
+  ).data;
+  if (gitCwd === null || status?.isRepo === false) {
+    return <ThreadDetailsFilesFallback threadRef={threadRef} />;
+  }
+  if (status == null) return null;
+  const tree = status.workingTree;
+  if (tree.files.length === 0) {
+    return <p className="px-4 py-3 text-xs text-muted-foreground">No uncommitted changes.</p>;
+  }
+  const directories = groupUncommittedFiles(tree.files);
+  const largest = Math.max(...tree.files.map((file) => file.insertions + file.deletions));
+  const total = tree.insertions + tree.deletions;
   return (
     <div className="flex flex-col gap-3 px-4 py-3 text-xs">
       <div className="flex flex-col gap-1.5">
         <div className="flex items-baseline gap-2">
           <span className="text-sm font-medium tabular-nums">
-            {changes.files === 1 ? "1 file" : `${changes.files} files`}
+            {tree.files.length === 1
+              ? "1 uncommitted file"
+              : `${tree.files.length} uncommitted files`}
           </span>
-          <LineCounts additions={changes.additions} deletions={changes.deletions} />
+          <LineCounts additions={tree.insertions} deletions={tree.deletions} />
         </div>
         {total > 0 ? (
           <span aria-hidden className="flex h-1 overflow-hidden rounded-full bg-muted">
-            <span
-              className="bg-success"
-              style={{ width: `${(changes.additions / total) * 100}%` }}
-            />
+            <span className="bg-success" style={{ width: `${(tree.insertions / total) * 100}%` }} />
             <span className="flex-1 bg-error" />
           </span>
         ) : null}
       </div>
       <div className="flex flex-col gap-2">
-        {changes.directories.map((directory) => (
+        {directories.map((directory) => (
           <div key={directory.directory} className="flex flex-col">
             {directory.directory === "" ? null : (
               <span className="flex min-w-0 items-center gap-1.5 py-0.5 text-muted-foreground">
@@ -675,9 +683,6 @@ export function ThreadDetailsFilesTab({
                 onClick={onOpenChanges}
                 className="flex h-6 min-w-0 items-center gap-2 rounded-md px-1 text-left outline-none enabled:hover:bg-accent focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
               >
-                <span className="w-3 shrink-0 font-mono text-info-foreground">
-                  {kindLetter(file.kind)}
-                </span>
                 <span className="min-w-0 flex-1 truncate font-mono">{file.name}</span>
                 <ChangeBar
                   additions={file.additions}
@@ -689,29 +694,7 @@ export function ThreadDetailsFilesTab({
             ))}
           </div>
         ))}
-        {changes.partial ? (
-          <span className="text-muted-foreground">
-            Some turns changed more files than are listed here.
-          </span>
-        ) : null}
       </div>
-      {changes.turns.length > 0 ? (
-        <div className="flex flex-col gap-1">
-          <span className="flex items-center justify-between text-muted-foreground">
-            <span>By turn</span>
-            <span>from checkpoints</span>
-          </span>
-          {changes.turns.map((turn) => (
-            <div key={turn.turn} className="flex items-center gap-2">
-              <span className="w-12 shrink-0">Turn {turn.turn}</span>
-              <span className="min-w-0 flex-1 text-muted-foreground">
-                {turn.files === 1 ? "1 file" : `${turn.files} files`}
-              </span>
-              <LineCounts additions={turn.additions} deletions={turn.deletions} />
-            </div>
-          ))}
-        </div>
-      ) : null}
     </div>
   );
 }

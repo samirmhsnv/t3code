@@ -2,7 +2,6 @@ import { sha1 } from "@noble/hashes/legacy";
 import { sha256 } from "@noble/hashes/sha2";
 import { bytesToHex, utf8ToBytes } from "@noble/hashes/utils";
 import type { OrchestrationV2PlanArtifact } from "@t3tools/contracts";
-import type { TurnDiffSummary as ThreadCheckpointSummary } from "../../types";
 
 export interface ThreadNowNext {
   readonly now: string | null;
@@ -50,34 +49,11 @@ export function threadNowNext(input: {
   };
 }
 
-export interface ThreadChangedFile {
+export interface UncommittedFile {
   readonly path: string;
-  readonly kind: string;
+  readonly name: string;
   readonly additions: number;
   readonly deletions: number;
-}
-
-export interface ThreadChangedDirectory {
-  readonly directory: string;
-  readonly files: ReadonlyArray<ThreadChangedFile & { readonly name: string }>;
-}
-
-export interface ThreadTurnChange {
-  readonly turn: number;
-  readonly files: number;
-  readonly additions: number;
-  readonly deletions: number;
-}
-
-export interface ThreadChanges {
-  readonly files: number;
-  readonly additions: number;
-  readonly deletions: number;
-  readonly directories: ReadonlyArray<ThreadChangedDirectory>;
-  /** Newest turn first. */
-  readonly turns: ReadonlyArray<ThreadTurnChange>;
-  /** Some checkpoints listed only a prefix of their files. */
-  readonly partial: boolean;
 }
 
 function splitPath(path: string): { directory: string; name: string } {
@@ -87,60 +63,22 @@ function splitPath(path: string): { directory: string; name: string } {
     : { directory: path.slice(0, slash + 1), name: path.slice(slash + 1) };
 }
 
-/** Every file the thread's turns changed, summed per path across turns, grouped by folder. */
-export function summarizeThreadChanges(
-  checkpoints: ReadonlyArray<ThreadCheckpointSummary>,
-): ThreadChanges {
-  const byPath = new Map<string, ThreadChangedFile>();
-  const turns: ThreadTurnChange[] = [];
-  let partial = false;
-  for (const checkpoint of checkpoints) {
-    if (checkpoint.status !== "ready") continue;
-    let additions = 0;
-    let deletions = 0;
-    for (const file of checkpoint.files) {
-      additions += file.additions;
-      deletions += file.deletions;
-      const previous = byPath.get(file.path);
-      byPath.set(file.path, {
-        path: file.path,
-        // The newest turn's kind describes the file now.
-        kind: file.kind,
-        additions: (previous?.additions ?? 0) + file.additions,
-        deletions: (previous?.deletions ?? 0) + file.deletions,
-      });
-    }
-    const totals = checkpoint.filesTotal;
-    if (totals !== undefined) partial = true;
-    if ((totals?.count ?? checkpoint.files.length) === 0) continue;
-    turns.push({
-      turn: checkpoint.checkpointTurnCount,
-      files: totals?.count ?? checkpoint.files.length,
-      additions: totals?.additions ?? additions,
-      deletions: totals?.deletions ?? deletions,
-    });
-  }
-  const directories = new Map<string, Array<ThreadChangedFile & { name: string }>>();
-  let additions = 0;
-  let deletions = 0;
-  for (const file of [...byPath.values()].toSorted((left, right) =>
-    left.path.localeCompare(right.path),
-  )) {
-    additions += file.additions;
-    deletions += file.deletions;
+/** The working tree's uncommitted files, grouped by folder in path order. */
+export function groupUncommittedFiles(
+  files: ReadonlyArray<{
+    readonly path: string;
+    readonly insertions: number;
+    readonly deletions: number;
+  }>,
+) {
+  const directories = new Map<string, UncommittedFile[]>();
+  for (const file of files.toSorted((left, right) => left.path.localeCompare(right.path))) {
     const { directory, name } = splitPath(file.path);
     const list = directories.get(directory) ?? [];
-    list.push({ ...file, name });
+    list.push({ path: file.path, name, additions: file.insertions, deletions: file.deletions });
     directories.set(directory, list);
   }
-  return {
-    files: byPath.size,
-    additions,
-    deletions,
-    directories: [...directories].map(([directory, files]) => ({ directory, files })),
-    turns: turns.toReversed(),
-    partial,
-  };
+  return [...directories].map(([directory, list]) => ({ directory, files: list }));
 }
 
 /** A file's share of the largest change, in quarters, so tiny edits still show a sliver. */

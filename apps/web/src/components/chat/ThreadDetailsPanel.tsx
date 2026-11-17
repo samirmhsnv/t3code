@@ -146,12 +146,13 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
               <ThreadDetailsSection
                 key="files"
                 headingId="thread-details-files-heading"
-                title="Changed files"
+                title="Uncommitted changes"
                 separated={false}
                 showHeading={false}
               >
                 <ThreadDetailsFilesTab
                   threadRef={activeThreadRef}
+                  gitCwd={props.isGitRepo ? props.gitCwd : null}
                   onOpenChanges={props.onOpenChanges}
                 />
               </ThreadDetailsSection>,
