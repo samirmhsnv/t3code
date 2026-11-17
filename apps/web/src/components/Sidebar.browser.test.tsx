@@ -18,7 +18,7 @@ import { useHandleNewThread } from "../hooks/useHandleNewThread";
 import { useNowMinute } from "../hooks/useNowMinute";
 import { __setClientSettingsForTests, getClientSettings } from "../hooks/useSettings";
 import { useThreadRouteTarget } from "../hooks/useThreadRouteTarget";
-import { useProjects, useQuietThreadShells } from "../state/entities";
+import { useProjects, useQuietThreadShells, useServerConfigs } from "../state/entities";
 import { readEnvironmentScope, useEnvironmentScope } from "../state/session";
 import { useOrchestrationCommand } from "../state/use-orchestration-command";
 import { useTerminalUiStateStore } from "../terminalUiStateStore";
@@ -296,5 +296,55 @@ describe("sidebar thread menu", () => {
     await userEvent.click(row, { button: "right" });
     await vi.waitFor(() => expect(show).toHaveBeenCalledTimes(2));
     expect(show.mock.lastCall?.[2]).toBe("mouse");
+  });
+});
+
+describe("sidebar settled projects", () => {
+  it("shelves a project whose threads are all settled, closed until opened", async () => {
+    using stack = new DisposableStack();
+    const previousSettings = getClientSettings();
+    stack.defer(() => __setClientSettingsForTests(previousSettings));
+    __setClientSettingsForTests({ ...DEFAULT_CLIENT_SETTINGS, boringSidebarEnabled: true });
+    const live = project("live");
+    const quiet = project("quiet");
+    const routeThreadRef: ScopedThreadRef = {
+      environmentId: live.environmentId,
+      threadId: ThreadId.make("thread-0"),
+    };
+    vi.mocked(useNowMinute).mockReturnValue("2026-01-01T00:00");
+    vi.mocked(useProjects).mockReturnValue([live, quiet]);
+    // Settled state counts only once the environment's server config has loaded.
+    vi.mocked(useServerConfigs).mockReturnValue(new Map([[live.environmentId, {} as never]]));
+    vi.mocked(useQuietThreadShells).mockReturnValue([
+      threadShell(live.id, 0),
+      {
+        ...threadShell(quiet.id, 1),
+        settledOverride: "settled",
+        settledAt: "2026-01-01T00:00:00.000Z",
+      },
+    ]);
+    vi.mocked(useThreadRouteTarget).mockReturnValue({ kind: "server", threadRef: routeThreadRef });
+    vi.mocked(useHandleNewThread).mockReturnValue({
+      activeDraftThread: null,
+      activeThread: null,
+      defaultProjectRef: { environmentId: live.environmentId, projectId: live.id },
+      defaultProjectFallbackReady: true,
+      handleNewThread: vi.fn().mockResolvedValue(null),
+      routeDraftId: null,
+      routeThreadRef,
+    });
+    await using screen = await render(
+      <SidebarProvider>
+        <Sidebar routeReveal={{ observedKey: null, pendingKey: null }} />
+      </SidebarProvider>,
+    );
+
+    const shelf = screen.getByTestId("sidebar-settled-projects-toggle");
+    await expect.element(shelf).toHaveAttribute("aria-expanded", "false");
+    await expect.element(screen.getByRole("button", { name: /^live/ })).toBeInTheDocument();
+    await expect.element(screen.getByRole("button", { name: /^quiet/ })).not.toBeInTheDocument();
+
+    await userEvent.click(shelf);
+    await expect.element(screen.getByRole("button", { name: /^quiet/ })).toBeInTheDocument();
   });
 });

@@ -231,6 +231,7 @@ import { titleRegenerationToast } from "./threadTitleRegenerationToast";
 import { copyThreadReference } from "../lib/copyThreadReference";
 import { threadChipCopyTarget } from "@t3tools/client-runtime/thread-reference";
 import { SidebarContent, SidebarGroup, useSidebar } from "./ui/sidebar";
+import { CollapsibleSectionHeader } from "./ui/collapsible-section-header";
 import { SidebarChromeFooter, SidebarChromeHeader } from "./sidebar/SidebarChrome";
 import { SidebarThreadActions, SidebarThreadHeader } from "./sidebar/SidebarThreadHeader";
 import { TooltipProvider } from "./ui/tooltip";
@@ -557,6 +558,36 @@ function useSidebarThreads(input: {
           ],
           keepEmpty,
         );
+  // Unsettled threads per project, cards included, so a settled folder holds no live work.
+  const unsettledByFolder =
+    folderGroups === null
+      ? null
+      : groupSidebarThreadsByProject(
+          folderGroups,
+          [...pinnedThreads, ...activeThreads],
+          () => false,
+        );
+  const unsettledFolderKeys = new Set(
+    (unsettledByFolder ?? []).map((folder) => folder.group.projectKey),
+  );
+  const projectThreadsByKey = new Map<
+    string,
+    { unsettled: ScopedThreadRef[]; settled: ScopedThreadRef[] }
+  >();
+  for (const folder of unsettledByFolder ?? []) {
+    projectThreadsByKey.set(folder.group.projectKey, {
+      unsettled: folder.threads.map((thread) => scopeThreadRef(thread.environmentId, thread.id)),
+      settled: [],
+    });
+  }
+  for (const folder of groupedFolders ?? []) {
+    const settledRefs = folder.threads
+      .filter((thread) => thread.settledOverride === "settled")
+      .map((thread) => scopeThreadRef(thread.environmentId, thread.id));
+    const entry = projectThreadsByKey.get(folder.group.projectKey);
+    if (entry) entry.settled = settledRefs;
+    else projectThreadsByKey.set(folder.group.projectKey, { unsettled: [], settled: settledRefs });
+  }
   // Until a folder is picked, the open thread's project is the open one; "" means none.
   const effectiveOpenFolderKey =
     openFolderKey ??
@@ -573,6 +604,8 @@ function useSidebarThreads(input: {
           return {
             group: folder.group,
             collapsed,
+            // Every thread settled: the folder moves to the Settled shelf at the bottom.
+            settled: folder.threads.length > 0 && !unsettledFolderKeys.has(folder.group.projectKey),
             lastActivityMs: Math.max(0, ...activityTimes),
             // A closed folder still shows the open thread, and hints at the rest.
             threads: collapsed
@@ -641,6 +674,7 @@ function useSidebarThreads(input: {
     workingShelfExpanded,
     toggleWorkingShelf: () => setWorkingShelfExpanded((value) => !value),
     projectFolders,
+    projectThreadsByKey,
     stream,
     // One folder opens at a time, so moving between projects never grows the list.
     toggleProjectFolder: (group: SidebarProjectSnapshot) =>
@@ -1238,52 +1272,6 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     if (isMobile) setOpenMobile(false);
     void handleNewThread(scopeProjectRef(group.environmentId, group.id));
   });
-  const handleProjectFolderContextMenu = useStableCallback(
-    (
-      group: SidebarProjectSnapshot,
-      position: { x: number; y: number },
-      source: ContextMenuSource,
-    ) => {
-      const api = readLocalApi();
-      if (!api) return;
-      void (async () => {
-        const clicked = await settlePromise(() =>
-          api.contextMenu.show(
-            [
-              { id: "new-thread", label: "New thread" },
-              { id: "copy-path", label: "Copy path" },
-              ...(canPinProject(group)
-                ? [
-                    group.pinned
-                      ? { id: "unpin", label: "Unpin project", icon: "pin-off" }
-                      : { id: "pin", label: "Pin project", icon: "pin" },
-                  ]
-                : []),
-              { id: "project-settings", label: "Project settings", icon: "settings" },
-            ],
-            position,
-            source,
-          ),
-        );
-        if (clicked._tag === "Failure") return;
-        switch (clicked.value) {
-          case "new-thread":
-            startThreadInProjectFolder(group);
-            return;
-          case "copy-path":
-            copyPathToClipboard(group.workspaceRoot, { path: group.workspaceRoot });
-            return;
-          case "pin":
-          case "unpin":
-            setProjectGroupPinned(group, clicked.value === "pin");
-            return;
-          case "project-settings":
-            openProjectSettings(group);
-            return;
-        }
-      })();
-    },
-  );
 
   const {
     workingShelfEnabled,
@@ -1308,6 +1296,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     workingShelfExpanded,
     toggleWorkingShelf,
     projectFolders,
+    projectThreadsByKey,
     stream,
     toggleProjectFolder,
     renderedSettledThreads,
@@ -1419,6 +1408,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   const threadByKeyRef = useRef(threadByKey);
   const settledThreadKeysRef = useRef(settledThreadKeys);
   const snoozedThreadKeysRef = useRef(snoozedThreadKeys);
+  const projectThreadsByKeyRef = useRef(projectThreadsByKey);
 
   const jumpLabelByKey = (() => {
     const mapping = new Map<string, string>();
@@ -1665,6 +1655,69 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       }
     })();
   };
+  const handleProjectFolderContextMenu = useStableCallback(
+    (
+      group: SidebarProjectSnapshot,
+      position: { x: number; y: number },
+      source: ContextMenuSource,
+    ) => {
+      const api = readLocalApi();
+      if (!api) return;
+      const refs = projectThreadsByKeyRef.current.get(group.projectKey);
+      const unsettledRefs = refs?.unsettled ?? [];
+      const settledRefs = refs?.settled ?? [];
+      void (async () => {
+        const clicked = await settlePromise(() =>
+          api.contextMenu.show(
+            [
+              { id: "new-thread", label: "New thread" },
+              { id: "copy-path", label: "Copy path" },
+              ...(unsettledRefs.length > 0
+                ? [{ id: "settle-project", label: "Settle project" }]
+                : settledRefs.length > 0
+                  ? [{ id: "unsettle-project", label: "Un-settle project" }]
+                  : []),
+              ...(canPinProject(group)
+                ? [
+                    group.pinned
+                      ? { id: "unpin", label: "Unpin project", icon: "pin-off" }
+                      : { id: "pin", label: "Pin project", icon: "pin" },
+                  ]
+                : []),
+              { id: "project-settings", label: "Project settings", icon: "settings" },
+            ],
+            position,
+            source,
+          ),
+        );
+        if (clicked._tag === "Failure") return;
+        switch (clicked.value) {
+          case "new-thread":
+            startThreadInProjectFolder(group);
+            return;
+          case "copy-path":
+            copyPathToClipboard(group.workspaceRoot, { path: group.workspaceRoot });
+            return;
+          case "pin":
+          case "unpin":
+            setProjectGroupPinned(group, clicked.value === "pin");
+            return;
+          case "project-settings":
+            openProjectSettings(group);
+            return;
+          case "settle-project": {
+            const coSettlingKeys = new Set(unsettledRefs.map(scopedThreadKey));
+            for (const ref of unsettledRefs) attemptSettle(ref, { coSettlingKeys });
+            return;
+          }
+          case "unsettle-project":
+            for (const ref of settledRefs) attemptUnsettle(ref);
+            return;
+        }
+      })();
+    },
+  );
+
   const attemptUnsnooze = (threadRef: ScopedThreadRef) => {
     void (async () => {
       const result = await unsnoozeThread(threadRef);
@@ -1800,6 +1853,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     threadByKeyRef.current = threadByKey;
     settledThreadKeysRef.current = settledThreadKeys;
     snoozedThreadKeysRef.current = snoozedThreadKeys;
+    projectThreadsByKeyRef.current = projectThreadsByKey;
     sectionByThreadKeyRef.current = sectionByThreadKey;
   });
   const startActionSweep = useStableCallback(
@@ -3324,7 +3378,9 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                               items.push(renderThreadRow(thread, "active", parent, "card"));
                             }
                           }
-                          const folderCount = projectFolders.length;
+                          const openFolders = projectFolders.filter((folder) => !folder.settled);
+                          const settledFolders = projectFolders.filter((folder) => folder.settled);
+                          const folderCount = openFolders.length;
                           if (folderCount > 0) {
                             items.push(
                               <SidebarStreamHeader
@@ -3358,7 +3414,38 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                               );
                             }
                           };
-                          for (const folder of projectFolders) pushFolder(folder);
+                          for (const folder of openFolders) pushFolder(folder);
+                          if (settledFolders.length > 0) {
+                            items.push(
+                              <li key="settled-projects" className="mt-3 list-none">
+                                <CollapsibleSectionHeader
+                                  data-sidebar-row="shelf:settled-projects"
+                                  data-testid="sidebar-settled-projects-toggle"
+                                  onClick={toggleSettledShelf}
+                                  expanded={settledShelfExpanded}
+                                  tone="muted"
+                                  accessory={
+                                    <span className="font-normal tabular-nums">
+                                      {settledFolders.length}
+                                    </span>
+                                  }
+                                >
+                                  Settled
+                                </CollapsibleSectionHeader>
+                              </li>,
+                            );
+                            // A closed shelf still shows the folder holding the open thread.
+                            for (const folder of settledFolders) {
+                              if (
+                                settledShelfExpanded ||
+                                folder.threads.some(
+                                  (thread) => threadShellKey(thread) === routeRowThreadKey,
+                                )
+                              ) {
+                                pushFolder(folder);
+                              }
+                            }
+                          }
                           continue;
                         }
                         switch (item.marker) {
