@@ -1,8 +1,10 @@
 import { ProviderInstanceId } from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
 import {
+  canonicalModelPickerKey,
   modelPickerLegacySectionKey,
   modelPickerModelKey,
+  modelPickerRecentKey,
   parseModelPickerLegacySectionKey,
   parseModelPickerModelKey,
 } from "./modelPickerKeys";
@@ -27,5 +29,8 @@ describe("model picker item keys", () => {
     const key = modelPickerModelKey(instanceId, slug);
 
     expect(parseModelPickerModelKey(key)).toEqual({ instanceId, slug });
+    expect(parseModelPickerModelKey(modelPickerRecentKey(key))).toEqual({ instanceId, slug });
+    expect(canonicalModelPickerKey(modelPickerRecentKey(key))).toBe(key);
+    expect(modelPickerRecentKey(key)).not.toBe(key);
   });
 });

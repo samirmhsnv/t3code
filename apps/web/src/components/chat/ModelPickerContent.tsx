@@ -31,11 +31,14 @@ import { ModelPickerListHeader } from "./ModelPickerListHeader";
 import { useProviderWorkspaceSnapshotRefresh } from "./useProviderWorkspaceSnapshotRefresh";
 import { getProviderStatusMessage, hasProviderSetup } from "./ProviderStatusBanner";
 import {
+  canonicalModelPickerKey,
   modelPickerLegacySectionKey,
   modelPickerModelKey,
+  modelPickerRecentKey,
   parseModelPickerLegacySectionKey,
   parseModelPickerModelKey,
 } from "./modelPickerKeys";
+import { modelPickerJumpKeys, modelPickerListRows } from "./ProviderModelPicker.logic";
 import { rankModelPickerSearch } from "@t3tools/client-runtime/model-search";
 import {
   Combobox,
@@ -78,6 +81,7 @@ type ModelPickerItem = {
   name: string;
   shortName?: string;
   subProvider?: string;
+  description?: string;
   badge?: "new";
   instanceId: ProviderInstanceId;
   driverKind: ProviderDriverKind;
@@ -176,6 +180,15 @@ const MODEL_LIST_ESTIMATED_ITEM_SIZE = 32;
 
 function ModelListSeparator() {
   return <div className="h-0.5" />;
+}
+
+// Hidden from the listbox, which may only own options; each row already names its model.
+function ModelListGroupHeader(props: { label: string }) {
+  return (
+    <div aria-hidden="true" className="px-2 pt-2 pb-0.5 text-muted-foreground text-xs">
+      {props.label}
+    </div>
+  );
 }
 
 function modelJumpLabelsByKey(
@@ -578,6 +591,7 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
           name: model.name,
           ...(model.shortName ? { shortName: model.shortName } : {}),
           ...(model.subProvider ? { subProvider: model.subProvider } : {}),
+          ...(model.description ? { description: model.description } : {}),
           ...(model.badge ? { badge: model.badge } : {}),
           ...(model.isLegacy ? { isLegacy: true } : {}),
           ...(model.isUnavailable ? { isUnavailable: true } : {}),
@@ -740,31 +754,63 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
     return notice ? [{ instanceId: entry.instanceId, notice }] : [];
   });
 
-  const modelJumpModelKeys = visibleModels
-    .filter((model) => !getModelDisabledReason?.(model.instanceId, model.slug))
-    .slice(0, MODEL_PICKER_JUMP_KEYBINDING_COMMANDS.length)
-    .map((model) => modelPickerModelKey(model.instanceId, model.slug));
   const allItemKeys = ((): string[] => [
     ...flatModels.map((model) => modelPickerModelKey(model.instanceId, model.slug)),
+    ...recentModels.map((model) =>
+      modelPickerRecentKey(modelPickerModelKey(model.instanceId, model.slug)),
+    ),
     ...new Set(
       flatModels
         .filter((model) => model.isLegacy)
         .map((model) => modelPickerLegacySectionKey(model.instanceId)),
     ),
   ])();
-  const filteredItemKeys = ((): string[] => {
+  const mainItemKeys = ((): string[] => {
     const modelKeys = visibleModels.map((model) =>
       modelPickerModelKey(model.instanceId, model.slug),
     );
     // The toggle trails the list, so expanding it reveals older models above it.
     return legacySection ? [...modelKeys, legacySection.key] : modelKeys;
   })();
+  // Recent picks lead a provider's or Favorites' list, and stay in their place below too.
+  const recentGroupModels =
+    isSearching || selectedInstanceId === "recent" || mainItemKeys.length === 0
+      ? []
+      : recentModels.filter(
+          (model) => selectedInstanceId === "favorites" || model.instanceId === selectedInstanceId,
+        );
+  const listRows = modelPickerListRows([
+    {
+      key: "recent",
+      label: "Recent",
+      itemKeys: recentGroupModels.map((model) =>
+        modelPickerRecentKey(modelPickerModelKey(model.instanceId, model.slug)),
+      ),
+    },
+    {
+      key: "main",
+      label: selectedInstanceId === "favorites" ? "Favorites" : "All models",
+      itemKeys: mainItemKeys,
+    },
+  ]);
+  const filteredItemKeys = listRows.itemKeys;
+  const listRowByKey = new Map(listRows.rows.map((row) => [row.key, row] as const));
+  const listRowKeys = listRows.rows.map((row) => row.key);
   const filteredModelByKey = ((): ReadonlyMap<string, ModelPickerItem> =>
     new Map(
-      visibleModels.map(
+      [...visibleModels, ...recentGroupModels].map(
         (model) => [modelPickerModelKey(model.instanceId, model.slug), model] as const,
       ),
     ))();
+  const modelJumpModelKeys = modelPickerJumpKeys(filteredItemKeys, {
+    limit: MODEL_PICKER_JUMP_KEYBINDING_COMMANDS.length,
+    modelKeyOf: (itemKey) =>
+      parseModelPickerLegacySectionKey(itemKey) ? null : canonicalModelPickerKey(itemKey),
+    isDisabled: (modelKey) => {
+      const model = parseModelPickerModelKey(modelKey);
+      return model === null || Boolean(getModelDisabledReason?.(model.instanceId, model.slug));
+    },
+  });
 
   const favoriteCount = flatModels.filter(
     (model) =>
@@ -875,11 +921,9 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
         value={onToggleModel ? [...selectedModelKeySet] : activeModelKey}
         onItemHighlighted={(modelKey, eventDetails) => {
           highlightedModelKeyRef.current = typeof modelKey === "string" ? modelKey : null;
-          if (eventDetails.reason === "keyboard" && eventDetails.index >= 0) {
-            void modelListRef.current?.scrollIndexIntoView?.({
-              index: eventDetails.index,
-              animated: false,
-            });
+          const rowIndex = listRows.rowIndexByItemIndex[eventDetails.index];
+          if (eventDetails.reason === "keyboard" && rowIndex !== undefined) {
+            void modelListRef.current?.scrollIndexIntoView?.({ index: rowIndex, animated: false });
           }
         }}
         onValueChange={(value, details) => {
@@ -970,12 +1014,14 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
                   e.stopPropagation();
                   // The column shows the selected model's effort, so a highlighted model is picked
                   // first; the owning popup then moves focus to that model's levels.
-                  const highlighted = highlightedModelKeyRef.current
-                    ? parseModelPickerModelKey(highlightedModelKeyRef.current)
+                  const highlightedKey = highlightedModelKeyRef.current;
+                  const highlighted = highlightedKey
+                    ? parseModelPickerModelKey(highlightedKey)
                     : null;
                   const pickedNew =
                     highlighted !== null &&
-                    highlightedModelKeyRef.current !== activeModelKey &&
+                    modelPickerModelKey(highlighted.instanceId, highlighted.slug) !==
+                      activeModelKey &&
                     handleModelSelect(highlighted.slug, highlighted.instanceId) !== null;
                   if (!pickedNew) props.onFocusEffort();
                   return;
@@ -1058,15 +1104,19 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
               />
               <ModelPickerList
                 listRef={modelListRef}
-                itemKeys={filteredItemKeys}
+                itemKeys={listRowKeys}
                 extraData={modelListExtraData}
-                renderItem={({ item: modelKey, index }) => {
-                  if (legacySection?.key === modelKey) {
+                renderItem={({ item: rowKey }) => {
+                  const row = listRowByKey.get(rowKey);
+                  if (!row) return null;
+                  if (row.kind === "header") return <ModelListGroupHeader label={row.label} />;
+                  const index = row.index;
+                  if (legacySection?.key === rowKey) {
                     return (
                       <ComboboxItem
                         hideIndicator
                         index={index}
-                        value={modelKey}
+                        value={rowKey}
                         aria-expanded={legacySection.isExpanded}
                         className="group w-full cursor-pointer"
                       >
@@ -1086,6 +1136,7 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
                       </ComboboxItem>
                     );
                   }
+                  const modelKey = canonicalModelPickerKey(rowKey);
                   const model = filteredModelByKey.get(modelKey);
                   if (!model) {
                     return null;
@@ -1094,8 +1145,9 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
                     getModelDisabledReason?.(model.instanceId, model.slug) ?? null;
                   return (
                     <ModelListRow
-                      key={modelKey}
+                      key={rowKey}
                       index={index}
+                      value={rowKey}
                       slug={model.slug}
                       name={model.name}
                       subProvider={model.subProvider}
@@ -1105,7 +1157,7 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
                       providerAccentColor={model.instanceAccentColor}
                       acpRegistryAgentId={model.acpRegistryAgentId}
                       acpRegistryIconUrl={model.acpRegistryIconUrl}
-                      descriptor={modelDescriptor(model.slug)}
+                      descriptor={model.description ?? modelDescriptor(model.slug)}
                       showProviderIcon={!isProviderTab}
                       isFavorite={favoritesSet.has(providerModelKey(model.instanceId, model.slug))}
                       isSelected={
@@ -1117,7 +1169,7 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
                       showInstanceBadge={badgedInstanceIds.has(model.instanceId)}
                       showNewBadge={model.badge === "new"}
                       unavailable={model.isUnavailable === true}
-                      jumpLabel={modelJumpLabelByKey.get(modelKey) ?? null}
+                      jumpLabel={modelJumpLabelByKey.get(rowKey) ?? null}
                       disabledReason={disabledReason}
                       onToggleFavorite={toggleFavorite}
                     />

@@ -17,6 +17,7 @@ import {
   codexRoutesSpendNativeQuota,
   makeCodexSkillsProbe,
   mapCodexModelCapabilities,
+  parseCodexModelListResponse,
 } from "./CodexProvider.ts";
 
 function makeFakeCodexAppServers() {
@@ -216,6 +217,26 @@ it("maps current Codex model capability fields", () => {
       currentValue: "standard",
     },
   ]);
+});
+
+it("keeps the description Codex reports for each model", () => {
+  const model = {
+    defaultReasoningEffort: "medium",
+    displayName: "gpt-test",
+    hidden: false,
+    isDefault: false,
+    supportedReasoningEfforts: [],
+  };
+  const models = parseCodexModelListResponse({
+    data: [
+      { ...model, id: "a", model: "gpt-a", description: "  Frontier agentic coding  " },
+      { ...model, id: "b", model: "gpt-b", description: " " },
+    ],
+  });
+  assert.deepStrictEqual(
+    models.map((entry) => entry.description),
+    ["Frontier agentic coding", undefined],
+  );
 });
 
 it("uses standard routing when the catalog has no default service tier", () => {

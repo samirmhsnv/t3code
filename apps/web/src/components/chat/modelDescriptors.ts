@@ -1,4 +1,4 @@
-// Providers report no model descriptions, so the picker names the well-known families itself.
+// Fallback for models whose provider reports no description: names the well-known families.
 // First match wins, so narrower patterns come first.
 const MODEL_DESCRIPTORS: ReadonlyArray<readonly [RegExp, string]> = [
   [/\[1m\]|-1m\b|\b1m\b/, "Very large context"],

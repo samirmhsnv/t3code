@@ -8,11 +8,12 @@ import { Badge } from "../ui/badge";
 import { Kbd } from "../ui/kbd";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { cn } from "~/lib/utils";
-import { modelPickerModelKey } from "./modelPickerKeys";
 import { ProviderInstanceIcon } from "./ProviderInstanceIcon";
 
 export const ModelListRow = memo(function ModelListRow(props: {
   index: number;
+  /** The combobox value; a model listed again under Recent has its own. */
+  value: string;
   slug: string;
   name: string;
   subProvider?: string | undefined;
@@ -49,7 +50,7 @@ export const ModelListRow = memo(function ModelListRow(props: {
       hideIndicator
       selectedFill={false}
       index={props.index}
-      value={modelPickerModelKey(props.instanceId, props.slug)}
+      value={props.value}
       disabled={Boolean(props.disabledReason)}
       className={cn(
         "group relative w-full !min-w-0 max-w-full cursor-pointer",

@@ -224,7 +224,7 @@ export function buildGrokModelCapabilities(model: EffectAcpSchema.ModelInfo): Mo
     : EMPTY_CAPABILITIES;
 }
 
-function buildGrokModelsFromSessionModelState(
+export function buildGrokModelsFromSessionModelState(
   modelState: EffectAcpSchema.SessionModelState | null | undefined,
 ): ReadonlyArray<ServerProviderModel> {
   if (!modelState || modelState.availableModels.length === 0) {
@@ -238,10 +238,12 @@ function buildGrokModelsFromSessionModelState(
       return [];
     }
     seen.add(slug);
+    const description = model.description?.trim();
     return [
       {
         slug,
         name: model.name.trim() || slug,
+        ...(description ? { description } : {}),
         isCustom: false,
         ...(model.modelId.trim() === currentModelId ? { isDefault: true } : {}),
         capabilities: buildGrokModelCapabilities(model),

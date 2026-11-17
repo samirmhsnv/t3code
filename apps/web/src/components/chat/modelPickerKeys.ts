@@ -2,14 +2,26 @@ import type { ProviderInstanceId } from "@t3tools/contracts";
 
 const MODEL_KEY_PREFIX = "model:";
 const LEGACY_SECTION_KEY_PREFIX = "legacy-models:";
+const RECENT_KEY_PREFIX = "recent:";
 
 export function modelPickerModelKey(instanceId: ProviderInstanceId, slug: string): string {
   return `${MODEL_KEY_PREFIX}${instanceId.length}:${instanceId}${slug}`;
 }
 
+/** A model's second row in the Recent group, so each list row keeps a unique combobox value. */
+export function modelPickerRecentKey(modelKey: string): string {
+  return `${RECENT_KEY_PREFIX}${modelKey}`;
+}
+
+/** The model key a row stands for, whichever group it sits in. */
+export function canonicalModelPickerKey(key: string): string {
+  return key.startsWith(RECENT_KEY_PREFIX) ? key.slice(RECENT_KEY_PREFIX.length) : key;
+}
+
 export function parseModelPickerModelKey(
-  key: string,
+  rowKey: string,
 ): { instanceId: ProviderInstanceId; slug: string } | null {
+  const key = canonicalModelPickerKey(rowKey);
   if (!key.startsWith(MODEL_KEY_PREFIX)) {
     return null;
   }

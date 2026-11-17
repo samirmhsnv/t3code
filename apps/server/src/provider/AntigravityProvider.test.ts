@@ -201,6 +201,24 @@ describe("Antigravity model catalog", () => {
     ).toEqual([]);
   });
 
+  it("keeps the descriptions Antigravity reports for its models", () => {
+    const options = [
+      { value: "gemini-pro-agent", name: "Gemini 3.1 Pro", description: " Deep reasoning " },
+      { value: "gemini-3.1-pro-low", name: "Gemini 3.1 Pro (Low)", description: null },
+    ];
+    const fromConfig = buildAntigravityModelsFromSession({
+      configOptions: [{ ...modelConfig, currentValue: "gemini-pro-agent", options }],
+    });
+    const fromLegacy = buildAntigravityModelsFromSession({
+      models: {
+        currentModelId: "gemini-pro-agent",
+        availableModels: options.map(({ value, ...option }) => ({ ...option, modelId: value })),
+      },
+    });
+    expect(fromConfig.map((model) => model.description)).toEqual(["Deep reasoning", undefined]);
+    expect(fromLegacy).toEqual(fromConfig);
+  });
+
   it("flattens native option groups without combining distinct model IDs", () => {
     const models = buildAntigravityModelsFromSession({
       configOptions: [

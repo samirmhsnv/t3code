@@ -21,6 +21,7 @@ import { GrokSettings } from "@t3tools/provider-grok/settings";
 
 import {
   buildGrokModelCapabilities,
+  buildGrokModelsFromSessionModelState,
   checkGrokProviderStatus,
   grokSlashCommandsFromInitialize,
   parseGrokModelsCliOutput,
@@ -112,6 +113,19 @@ describe("grokSlashCommandsFromInitialize", () => {
     });
     expect(commands.map((command) => command.name)).toEqual(["compact", "session-info"]);
     expect(commands[1]?.description).toBe("Updated session details");
+  });
+});
+
+describe("buildGrokModelsFromSessionModelState", () => {
+  it("keeps the description ACP reports for a model", () => {
+    const models = buildGrokModelsFromSessionModelState({
+      currentModelId: "grok-4.6",
+      availableModels: [
+        { modelId: "grok-4.6", name: "Grok 4.6", description: " Frontier reasoning " },
+        { modelId: "grok-4.5", name: "Grok 4.5", description: null },
+      ],
+    });
+    expect(models.map((model) => model.description)).toEqual(["Frontier reasoning", undefined]);
   });
 });
 

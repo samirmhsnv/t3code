@@ -204,6 +204,7 @@ function modelsFromDiscovery(
       : discovered.map((model) => ({
           slug: model.id,
           name: model.name,
+          ...(model.description?.trim() ? { description: model.description.trim() } : {}),
           isCustom: false,
           ...(model.id === discovery?.currentModelId ? { isDefault: true } : {}),
           capabilities: capabilitiesFor(model),

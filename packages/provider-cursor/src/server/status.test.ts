@@ -154,10 +154,11 @@ describe("Cursor SDK model discovery", () => {
     );
   });
 
-  it("keeps catalog aliases and filters invalid and duplicate SDK model entries", () => {
+  it("keeps catalog aliases and descriptions and filters invalid and duplicate SDK model entries", () => {
     const composer = {
       id: "composer-2",
       displayName: "Composer 2",
+      description: " Fast agentic edits ",
       aliases: [" composer-latest ", "", "composer"],
     } satisfies SDKModel;
     expect(
@@ -177,6 +178,7 @@ describe("Cursor SDK model discovery", () => {
       {
         slug: "composer-2",
         name: "Composer 2",
+        description: "Fast agentic edits",
         aliases: ["composer-latest", "composer"],
         isCustom: false,
         capabilities: buildCursorCapabilitiesFromSdkModel(composer),

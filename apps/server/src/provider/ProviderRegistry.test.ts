@@ -4299,7 +4299,7 @@ it.layer(
               {
                 value: "gateway/claude-relay",
                 displayName: "Claude Relay",
-                description: "",
+                description: " Routed through the gateway ",
                 supportsEffort: true,
                 supportedEffortLevels: ["low", "high"],
               },
@@ -4310,11 +4310,11 @@ it.layer(
         const added = status.models.filter((model) => !catalogSlugs.has(model.slug));
 
         assert.deepStrictEqual(
-          added.map((model) => [model.slug, model.name, model.isCustom]),
+          added.map((model) => [model.slug, model.name, model.isCustom, model.description]),
           [
-            ["gateway/glm-5[1m]", "GLM 5", false],
-            ["gateway/claude-relay", "Claude Relay", false],
-            ["gateway/kimi-3[1m]", "Kimi (mine)", true],
+            ["gateway/glm-5[1m]", "GLM 5", false, undefined],
+            ["gateway/claude-relay", "Claude Relay", false, "Routed through the gateway"],
+            ["gateway/kimi-3[1m]", "Kimi (mine)", true, undefined],
           ],
         );
         assert.deepStrictEqual(added[0]?.capabilities?.optionDescriptors, []);

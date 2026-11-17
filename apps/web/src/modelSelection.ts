@@ -66,6 +66,7 @@ export interface AppModelOption {
   name: string;
   shortName?: string;
   subProvider?: string;
+  description?: string;
   aliases?: ReadonlyArray<string>;
   badge?: "new";
   isCustom: boolean;
@@ -105,6 +106,7 @@ function toAppModelOption(
   const shortName = resolveModelShortName(model, driverKind);
   if (shortName) option.shortName = shortName;
   if (model.subProvider) option.subProvider = model.subProvider;
+  if (model.description) option.description = model.description;
   if (model.aliases) option.aliases = model.aliases;
   if (model.badge) option.badge = model.badge;
   if (model.isDefault) option.isDefault = true;

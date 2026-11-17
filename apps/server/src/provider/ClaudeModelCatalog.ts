@@ -198,9 +198,11 @@ export function claudeReportedModels(
     if (ids.some((id) => known.has(id))) continue;
     for (const id of ids) known.add(id);
     const efforts = info.supportsEffort ? (info.supportedEffortLevels ?? []) : [];
+    const description = info.description?.trim();
     models.push({
       slug,
       name: info.displayName.trim() || slug,
+      ...(description ? { description } : {}),
       isCustom: false,
       capabilities: {
         optionDescriptors: efforts.length
