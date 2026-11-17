@@ -1077,6 +1077,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       ? scopedThreadKey(renamingThreadRef)
       : null;
   const [renamingTitle, setRenamingTitle] = useState("");
+  // A thread can show twice (Recent and its folder); only the row the rename began in edits.
+  const [renamingInRecent, setRenamingInRecent] = useState(false);
   const renamingOriginalTitleRef = useRef("");
   const settlingThreadKeysRef = useRef(new Set<string>());
   const threadListRef = useRef<HTMLUListElement | null>(null);
@@ -1590,6 +1592,11 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     setRenamingThreadRef(threadRef);
     setRenamingTitle(title);
     renamingOriginalTitleRef.current = title;
+    setRenamingInRecent(false);
+  });
+  const startRecentThreadRename = useStableCallback((threadRef: ScopedThreadRef, title: string) => {
+    startThreadRename(threadRef, title);
+    setRenamingInRecent(true);
   });
   const cancelThreadRename = () => setRenamingThreadRef(null);
   const commitThreadRename = (threadRef: ScopedThreadRef, title: string) => {
@@ -3337,11 +3344,15 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                             timestampFormat={timestampFormat}
                             onThreadClick={handleThreadClick}
                             onThreadActivate={navigateToThread}
-                            onStartRename={startThreadRename}
+                            onStartRename={
+                              isRecentCopy ? startRecentThreadRename : startThreadRename
+                            }
                             onRenameTitleChange={setRenamingTitle}
                             onCommitRename={commitThreadRename}
                             onCancelRename={cancelThreadRename}
-                            isRenaming={renamingThreadKey === threadKey}
+                            isRenaming={
+                              renamingThreadKey === threadKey && renamingInRecent === isRecentCopy
+                            }
                             renamingTitle={renamingThreadKey === threadKey ? renamingTitle : ""}
                             onContextMenu={handleThreadContextMenu}
                             onSettle={attemptSettle}
