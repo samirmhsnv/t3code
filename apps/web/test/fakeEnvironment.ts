@@ -223,6 +223,8 @@ export interface FakeThread {
   readonly sideChatOf?: ThreadId;
   /** Makes this an older settled thread the shell leaves out; only its family read returns it. */
   readonly olderSettled?: true;
+  /** Settles a listed thread, so a sidebar shows it in its folder rather than in Done. */
+  readonly settled?: true;
   readonly id: ThreadId;
   readonly title: string;
   /** Defaults to GPT-5.4 on Codex. */
@@ -338,8 +340,8 @@ function shellOf(thread: FakeThread): OrchestrationV2ThreadShell {
     createdAt: AT,
     updatedAt: AT,
     archivedAt: null,
-    settledOverride: thread.olderSettled ? "settled" : null,
-    settledAt: thread.olderSettled ? AT : null,
+    settledOverride: thread.olderSettled || thread.settled ? "settled" : null,
+    settledAt: thread.olderSettled || thread.settled ? AT : null,
     lastVisitedAt: AT,
     deletedAt: null,
   };

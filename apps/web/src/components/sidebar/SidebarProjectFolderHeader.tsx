@@ -1,7 +1,7 @@
 import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/models";
 import { scopedThreadKey, scopeThreadRef } from "@t3tools/client-runtime/environment";
 import type { ContextMenuSource } from "@t3tools/contracts";
-import { ChevronDownIcon, FolderIcon, SquarePenIcon } from "lucide-react";
+import { ChevronDownIcon, SquarePenIcon } from "lucide-react";
 import { memo } from "react";
 
 import { cn } from "~/lib/utils";
@@ -11,7 +11,7 @@ import { useUiStateStore } from "../../uiStateStore";
 import { resolveSidebarFolderDot, resolveThreadLastVisitedAt } from "../Sidebar.logic";
 import { Button } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
-import { SidebarActivityStrip } from "./SidebarStreamSections";
+import { ProjectFavicon } from "../ProjectFavicon";
 
 const FOLDER_DOT_CLASS_NAME = {
   attention: "bg-warning",
@@ -33,16 +33,13 @@ export function sidebarFolderRowId(projectKey: string) {
 }
 
 /**
- * A project folder in the boring sidebar. It reads like a shelf header: a trailing
- * count and chevron, with the count and a status dot only while it is closed, so a
- * closed folder still says when a hidden thread needs you.
+ * A project folder: its icon, name and chevron, with a status dot while it is closed,
+ * so a closed folder still says when a hidden thread needs you.
  */
 export const SidebarProjectFolderHeader = memo(function SidebarProjectFolderHeader(props: {
   group: SidebarProjectSnapshot;
   collapsed: boolean;
   hiddenThreads: readonly EnvironmentThreadShell[];
-  /** Threads active per day over the last week, oldest first. */
-  activity?: readonly number[] | null | undefined;
   onToggle: (group: SidebarProjectSnapshot) => void;
   onNewThread: (group: SidebarProjectSnapshot) => void;
   onContextMenu: (
@@ -68,10 +65,7 @@ export const SidebarProjectFolderHeader = memo(function SidebarProjectFolderHead
       )
     : null;
   return (
-    <li
-      data-testid="sidebar-project-folder"
-      className="group/project-folder relative mt-2 list-none first:mt-0"
-    >
+    <li data-testid="sidebar-project-folder" className="group/project-folder relative list-none">
       <button
         type="button"
         data-sidebar-row={rowId}
@@ -85,25 +79,25 @@ export const SidebarProjectFolderHeader = memo(function SidebarProjectFolderHead
             contextMenuSourceOf(event),
           );
         }}
-        className="flex h-8 w-full cursor-pointer items-center gap-2.5 rounded-(--control-radius) px-(--sidebar-row-content-inset) text-left outline-none hover:bg-sidebar-row-hover focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+        className="flex h-7 w-full cursor-pointer items-center gap-2 rounded-(--control-radius) px-(--sidebar-row-content-inset) text-left outline-none hover:bg-sidebar-row-hover focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
       >
-        <FolderIcon aria-hidden className="size-4 shrink-0 text-sidebar-muted-foreground" />
-        <span className="min-w-0 flex-1 truncate text-sm font-medium text-sidebar-foreground/90">
+        <ProjectFavicon project={group} className="size-4 shrink-0" />
+        <span
+          className={cn(
+            "min-w-0 flex-1 truncate text-sm text-sidebar-foreground/90",
+            !collapsed && "font-medium text-sidebar-foreground",
+          )}
+        >
           {group.displayName}
         </span>
         {dot ? (
-          <span className={cn("size-1.5 shrink-0 rounded-full", FOLDER_DOT_CLASS_NAME[dot])}>
+          <span
+            className={cn(
+              "size-1.5 shrink-0 rounded-full group-hover/project-folder:invisible group-has-[[data-sidebar-action-for]:focus]/project-folder:invisible pointer-coarse:invisible",
+              FOLDER_DOT_CLASS_NAME[dot],
+            )}
+          >
             <span className="sr-only">{FOLDER_DOT_LABEL[dot]}</span>
-          </span>
-        ) : null}
-        {props.activity ? (
-          <span className="inline-flex shrink-0 group-hover/project-folder:invisible group-has-[[data-sidebar-action-for]:focus]/project-folder:invisible pointer-coarse:invisible">
-            <SidebarActivityStrip buckets={props.activity} />
-          </span>
-        ) : null}
-        {collapsed && hiddenThreads.length > 0 ? (
-          <span className="shrink-0 text-xs tabular-nums text-sidebar-muted-foreground group-hover/project-folder:invisible group-has-[[data-sidebar-action-for]:focus]/project-folder:invisible pointer-coarse:invisible">
-            {hiddenThreads.length}
           </span>
         ) : null}
         <ChevronDownIcon
@@ -114,7 +108,7 @@ export const SidebarProjectFolderHeader = memo(function SidebarProjectFolderHead
           )}
         />
       </button>
-      {/* Sits over the count, which hides on hover or focus, and left of the chevron. */}
+      {/* Sits left of the chevron, over the status dot it hides. */}
       <span className="absolute inset-y-0 right-6 flex items-center opacity-0 focus-within:opacity-100 group-hover/project-folder:opacity-100 pointer-coarse:opacity-100">
         <Tooltip>
           <TooltipTrigger

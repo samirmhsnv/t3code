@@ -111,7 +111,7 @@ import {
   getSidebarProjectSettingsKey,
   type SidebarProjectSnapshot,
 } from "../sidebarProjectGrouping";
-import { resolveProjectExpanded, useUiStateStore } from "../uiStateStore";
+import { useUiStateStore } from "../uiStateStore";
 import {
   getThreadKeysToDeselectAfterDelete,
   useThreadSelectionStore,
@@ -173,7 +173,6 @@ import {
   applySidebarThreadDrop,
   filterSidebarV2VisibleThreads,
   groupSidebarThreadsByProject,
-  sidebarFolderExpansionKeys,
   buildBulkTitleRegenerationContextMenuItem,
   buildBulkUnpinContextMenuItem,
   deleteSelectedThreadEntries,
@@ -252,14 +251,9 @@ import { SidebarDraftBlock } from "./sidebar/SidebarDraftBlock";
 import {
   buildSidebarStream,
   orderSidebarProjectFolders,
-  sidebarActivityDayBuckets,
   sidebarStreamLane,
 } from "./sidebar/sidebarStream.logic";
-import {
-  SidebarEnvironmentFilter,
-  SidebarStreamHeader,
-  type SidebarEnvironmentFilterOption,
-} from "./sidebar/SidebarStreamSections";
+import { SidebarStreamHeader } from "./sidebar/SidebarStreamSections";
 import {
   SidebarProjectFolderHeader,
   sidebarFolderRowId,
@@ -324,7 +318,9 @@ const EMPTY_THREADS: readonly EnvironmentThreadShell[] = [];
 // Tree parents for the stream's card rows above the project folders.
 const NEEDS_YOU_ROW_PARENT = "stream:needs-you";
 const WORKING_ROW_PARENT = "stream:working";
-const ENVIRONMENT_FILTER_KEY = "t3code:sidebar:environment-filter";
+const DONE_ROW_PARENT = "stream:done";
+const OPEN_FOLDER_KEY = "t3code:sidebar:open-project";
+const OPEN_FOLDER_SCHEMA = Schema.NullOr(Schema.String);
 
 const SETTLED_TAIL_INITIAL_COUNT = 10;
 const SETTLED_TAIL_PAGE_COUNT = 25;
@@ -463,10 +459,12 @@ function useSidebarThreads(input: {
     false,
     Schema.Boolean,
   );
-  // Shared with the old per-project sidebar, so folders keep their open state.
-  const projectExpandedById = useUiStateStore((store) => store.projectExpandedById);
+  const [openFolderKey, setOpenFolderKey] = useLocalStorage(
+    OPEN_FOLDER_KEY,
+    null,
+    OPEN_FOLDER_SCHEMA,
+  );
   const threadLastVisitedAtById = useUiStateStore((store) => store.threadLastVisitedAtById);
-  const setProjectExpanded = useUiStateStore((store) => store.setProjectExpanded);
   const [settledTail, setSettledTail] = useState({
     scopeKey: projectScopeKey,
     count: SETTLED_TAIL_INITIAL_COUNT,
@@ -527,33 +525,30 @@ function useSidebarThreads(input: {
   const visibleWorkingThreads = workingShelfExpanded
     ? workingThreads
     : routeThreadOnly(workingThreads, routeRowThreadKey);
-  // Threads in play (working, waiting on you, or finished unread) lead the stream.
-  const inPlayThreads =
-    folderGroups === null
-      ? EMPTY_THREADS
-      : activeThreads.filter((thread) =>
-          isThreadInPlay(thread, threadLastVisitedAtById[threadShellKey(thread)]),
-        );
-  const nowMs = Date.parse(`${nowMinute}:00.000Z`);
   const activityMsOf = (thread: EnvironmentThreadShell) =>
     firstValidTimestampMs(resolveThreadActivityTimestamp(thread), thread.updatedAt);
+  // Live threads lead the stream; a finished run stays in Done until the thread is settled.
   const stream = buildSidebarStream({
-    inPlay: inPlayThreads,
-    laneOf: (thread) =>
-      sidebarStreamLane(
+    threads: folderGroups === null ? EMPTY_THREADS : activeThreads,
+    laneOf: (thread) => {
+      const localLastVisitedAt = threadLastVisitedAtById[threadShellKey(thread)];
+      if (!isThreadInPlay(thread, localLastVisitedAt)) {
+        return thread.latestRun?.completedAt ? "done" : null;
+      }
+      return sidebarStreamLane(
         thread,
         resolveSidebarRowStatus({
           ...thread,
-          lastVisitedAt: resolveThreadLastVisitedAt(
-            thread.lastVisitedAt,
-            threadLastVisitedAtById[threadShellKey(thread)],
-          ),
+          lastVisitedAt: resolveThreadLastVisitedAt(thread.lastVisitedAt, localLastVisitedAt),
         }),
-      ),
+      );
+    },
+    activityMsOf,
   });
-  // Finished-unread threads stay in their folders; only cards leave them.
-  const cardKeys = new Set([...stream.needsYou, ...stream.working].map(threadShellKey));
-  const allProjectFolders =
+  const cardKeys = new Set(
+    [...stream.needsYou, ...stream.working, ...stream.done].map(threadShellKey),
+  );
+  const groupedFolders =
     folderGroups === null
       ? null
       : groupSidebarThreadsByProject(
@@ -563,17 +558,24 @@ function useSidebarThreads(input: {
             ...settledThreads,
           ],
           keepEmpty,
-        ).map((folder) => {
-          const collapsed = !resolveProjectExpanded(
-            projectExpandedById,
-            sidebarFolderExpansionKeys(folder.group),
-          );
+        );
+  // Until a folder is picked, the open thread's project is the open one; "" means none.
+  const effectiveOpenFolderKey =
+    openFolderKey ??
+    groupedFolders?.find((folder) =>
+      folder.threads.some((thread) => threadShellKey(thread) === routeRowThreadKey),
+    )?.group.projectKey ??
+    "";
+  const allProjectFolders =
+    groupedFolders === null
+      ? null
+      : groupedFolders.map((folder) => {
+          const collapsed = folder.group.projectKey !== effectiveOpenFolderKey;
           const activityTimes = folder.threads.map(activityMsOf);
           return {
             group: folder.group,
             collapsed,
             lastActivityMs: Math.max(0, ...activityTimes),
-            activity: sidebarActivityDayBuckets(activityTimes, nowMs),
             // A closed folder still shows the open thread, and hints at the rest.
             threads: collapsed
               ? routeThreadOnly(folder.threads, routeRowThreadKey)
@@ -596,6 +598,7 @@ function useSidebarThreads(input: {
     ...pinnedThreads,
     ...stream.needsYou,
     ...stream.working,
+    ...stream.done,
     ...(projectFolders === null
       ? activeThreads
       : projectFolders.flatMap((folder) => folder.threads)),
@@ -641,10 +644,9 @@ function useSidebarThreads(input: {
     toggleWorkingShelf: () => setWorkingShelfExpanded((value) => !value),
     projectFolders,
     stream,
-    toggleProjectFolder: (group: SidebarProjectSnapshot) => {
-      const keys = sidebarFolderExpansionKeys(group);
-      setProjectExpanded(keys, !resolveProjectExpanded(projectExpandedById, keys));
-    },
+    // One folder opens at a time, so moving between projects never grows the list.
+    toggleProjectFolder: (group: SidebarProjectSnapshot) =>
+      setOpenFolderKey(group.projectKey === effectiveOpenFolderKey ? "" : group.projectKey),
     renderedSettledThreads,
     visibleSnoozedThreads,
     visibleWorkingThreads,
@@ -1135,52 +1137,10 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
             ? asLaunchingThread(thread)
             : thread,
         );
-  const [storedEnvironmentFilter, setEnvironmentFilter] = useLocalStorage(
-    ENVIRONMENT_FILTER_KEY,
-    "all",
-    Schema.String,
-  );
-  const threadEnvironmentIds = [...new Set(listedThreads.map((thread) => thread.environmentId))];
-  // The filter only exists while threads span environments; a stale choice reads as All.
-  const environmentFilter =
-    threadEnvironmentIds.length > 1 &&
-    threadEnvironmentIds.some((environmentId) => environmentId === storedEnvironmentFilter)
-      ? storedEnvironmentFilter
-      : "all";
-  const environmentFilterOptions: readonly SidebarEnvironmentFilterOption[] =
-    threadEnvironmentIds.length > 1
-      ? [
-          { value: "all", label: "All", connected: null },
-          ...threadEnvironmentIds
-            .map((environmentId) => ({
-              value: environmentId,
-              label:
-                environmentId === primaryEnvironmentId
-                  ? "This device"
-                  : (environmentLabelById.get(environmentId) ?? environmentId),
-              connected: connectedEnvironmentIds.includes(environmentId),
-            }))
-            .toSorted(
-              (left, right) =>
-                Number(right.value === primaryEnvironmentId) -
-                  Number(left.value === primaryEnvironmentId) ||
-                left.label.localeCompare(right.label),
-            ),
-        ]
-      : [];
   const routeRowThreadKey =
     routeThreadRef === null
       ? null
       : scopedThreadKey(resolveListedAncestorThreadRef(routeThreadRef, threads));
-  // The open thread stays listed when it lives outside the filtered environment.
-  const environmentFilteredThreads =
-    environmentFilter === "all"
-      ? listedThreads
-      : listedThreads.filter(
-          (thread) =>
-            thread.environmentId === environmentFilter ||
-            threadShellKey(thread) === routeRowThreadKey,
-        );
   const isSearchingThreads = threadSearchQuery.trim().length > 0;
   // The open draft's first send names its thread in place; a finalized draft reached by
   // navigation resolves through its redirect instead, and still reveals.
@@ -1370,7 +1330,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     serverConfigs,
     connectedEnvironmentIds,
     optimisticDrop,
-    threads: environmentFilteredThreads,
+    threads: listedThreads,
     delegatedUnderParent,
     routeRowThreadKey,
     folderGroups: boringSidebarEnabled
@@ -1380,9 +1340,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
         : scopedProjectGroups
       : null,
     keepEmptyFolders: (group) =>
-      (scopedProjectGroups.length > 0 || (group.pinned && !group.archived)) &&
-      (environmentFilter === "all" ||
-        group.memberProjectRefs.some((ref) => ref.environmentId === environmentFilter)),
+      scopedProjectGroups.length > 0 || (group.pinned && !group.archived),
   });
 
   // Ranked across environments as the palette ranks them, so one
@@ -2043,7 +2001,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     projectFolders
       ?.map((folder) => `${folder.group.projectKey}:${folder.threads.length}`)
       .join("\n") ?? "",
-    [...stream.needsYou, ...stream.working].map(threadShellKey).join("\n"),
+    [...stream.needsYou, ...stream.working, ...stream.done].map(threadShellKey).join("\n"),
     visibleDraftSessionCount,
     routeDraftIdForRows ?? "",
   ].join("\0");
@@ -3025,7 +2983,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       />
       <SidebarContent
         ref={sidebarContentRef}
-        className="min-h-full"
+        // Sidebar rows read one step smaller than the content they open.
+        className="min-h-full [--text-sm--line-height:1.25rem] [--text-sm:0.8125rem] [--text-xs:0.6875rem]"
         fixedHeader={
           threadSearchOpen || isSearchingThreads ? (
             <SidebarGroup className="z-[1]">
@@ -3349,19 +3308,10 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                           continue;
                         }
                         if (projectFolders !== null && item.marker === "active-placeholder") {
-                          if (environmentFilterOptions.length > 0) {
-                            items.push(
-                              <SidebarEnvironmentFilter
-                                key="environment-filter"
-                                options={environmentFilterOptions}
-                                value={environmentFilter}
-                                onChange={setEnvironmentFilter}
-                              />,
-                            );
-                          }
                           const streamSections = [
                             ["Needs you", stream.needsYou, NEEDS_YOU_ROW_PARENT],
                             ["Working", stream.working, WORKING_ROW_PARENT],
+                            ["Done", stream.done, DONE_ROW_PARENT],
                           ] as const;
                           for (const [label, sectionThreads, parent] of streamSections) {
                             if (sectionThreads.length === 0) continue;
@@ -3383,7 +3333,6 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                                 key="stream-header:projects"
                                 label="Projects"
                                 count={folderCount}
-                                trailing="by activity"
                               />,
                             );
                           }
@@ -3394,7 +3343,6 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                                 group={folder.group}
                                 collapsed={folder.collapsed}
                                 hiddenThreads={folder.hiddenThreads}
-                                activity={folder.activity}
                                 onToggle={toggleProjectFolder}
                                 onNewThread={startThreadInProjectFolder}
                                 onContextMenu={handleProjectFolderContextMenu}

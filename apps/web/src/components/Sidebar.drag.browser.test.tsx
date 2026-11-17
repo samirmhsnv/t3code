@@ -36,7 +36,11 @@ vi.mock(import("~/rpc/requestLatencyState"), async (original) => ({
 
 it("shows the titled preview inside and outside search results from a collapsed folder", async () => {
   await page.viewport(1400, 900);
-  const [first, second] = [threadWithHistory("visible", 1), threadWithHistory("search-target", 1)];
+  // Settled, so both sit in the project folder instead of Done.
+  const [first, second] = [
+    { ...threadWithHistory("visible", 1), settled: true as const },
+    { ...threadWithHistory("search-target", 1), settled: true as const },
+  ];
   using _environment = installFakeEnvironment([first, second]);
   __setClientSettingsForTests({
     ...DEFAULT_CLIENT_SETTINGS,

@@ -1,10 +1,7 @@
 import type { SidebarThreadStatus } from "../Sidebar.logic";
 
-/** Where an in-play thread sits in the one-stream sidebar. */
-export type SidebarStreamLane = "needs-you" | "working" | "unread";
-
-const SIDEBAR_ACTIVITY_DAYS = 7;
-const DAY_MS = 24 * 60 * 60 * 1000;
+/** Where a thread sits in the stream above the project folders. */
+export type SidebarStreamLane = "needs-you" | "working" | "done";
 
 interface StreamLaneInput {
   readonly hasPendingApprovals: boolean;
@@ -32,23 +29,30 @@ export function sidebarStreamLane(
         thread.hasPendingUserInput ||
         thread.pendingSubagentRequest != null
         ? "needs-you"
-        : "unread";
+        : "done";
   }
 }
 
-/** Splits in-play threads into the Needs you and Working cards; unread ones stay in their folders. */
+/** Splits threads into the Needs you, Working and Done sections; Done is newest first. */
 export function buildSidebarStream<T>(input: {
-  readonly inPlay: readonly T[];
-  readonly laneOf: (thread: T) => SidebarStreamLane;
+  readonly threads: readonly T[];
+  readonly laneOf: (thread: T) => SidebarStreamLane | null;
+  readonly activityMsOf: (thread: T) => number;
 }) {
   const needsYou: T[] = [];
   const working: T[] = [];
-  for (const thread of input.inPlay) {
+  const done: T[] = [];
+  for (const thread of input.threads) {
     const lane = input.laneOf(thread);
     if (lane === "needs-you") needsYou.push(thread);
     else if (lane === "working") working.push(thread);
+    else if (lane === "done") done.push(thread);
   }
-  return { needsYou, working };
+  return {
+    needsYou,
+    working,
+    done: done.toSorted((left, right) => input.activityMsOf(right) - input.activityMsOf(left)),
+  };
 }
 
 /** Orders folders by their latest thread activity; pinned folders lead and archived ones trail. */
@@ -65,26 +69,6 @@ export function orderSidebarProjectFolders<F>(
     (left, right) =>
       rank(left) - rank(right) || input.lastActivityMsOf(right) - input.lastActivityMsOf(left),
   );
-}
-
-/**
- * Counts activity per rolling 24-hour window, oldest first, ending at `nowMs`.
- * Returns null when nothing landed in the range, so callers can skip the strip.
- */
-export function sidebarActivityDayBuckets(
-  timestampsMs: Iterable<number>,
-  nowMs: number,
-  days = SIDEBAR_ACTIVITY_DAYS,
-): number[] | null {
-  const buckets = Array.from({ length: days }, () => 0);
-  let any = false;
-  for (const timestamp of timestampsMs) {
-    const age = nowMs - timestamp;
-    if (!Number.isFinite(age) || age < 0 || age >= days * DAY_MS) continue;
-    buckets[days - 1 - Math.floor(age / DAY_MS)]! += 1;
-    any = true;
-  }
-  return any ? buckets : null;
 }
 
 interface StreamActivityInput extends StreamLaneInput {

@@ -3,7 +3,6 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   buildSidebarStream,
   orderSidebarProjectFolders,
-  sidebarActivityDayBuckets,
   sidebarStreamActivity,
   sidebarStreamLane,
 } from "./sidebarStream.logic";
@@ -31,7 +30,7 @@ describe("sidebarStreamLane", () => {
     ["preparing", "working"],
     ["working", "working"],
     ["waiting", "working"],
-    ["ready", "unread"],
+    ["ready", "done"],
   ] as const)("puts %s threads in %s", (status, lane) => {
     expect(sidebarStreamLane(idle, status)).toBe(lane);
   });
@@ -44,17 +43,21 @@ describe("sidebarStreamLane", () => {
 });
 
 describe("buildSidebarStream", () => {
-  it("splits in-play threads into cards and leaves unread ones out", () => {
+  it("splits threads into sections and orders Done newest first", () => {
     const stream = buildSidebarStream({
-      inPlay: [
-        { id: "approve", lane: "needs-you" as const },
-        { id: "run", lane: "working" as const },
-        { id: "done", lane: "unread" as const },
+      threads: [
+        { id: "approve", lane: "needs-you" as const, at: 1 },
+        { id: "run", lane: "working" as const, at: 2 },
+        { id: "done-old", lane: "done" as const, at: 3 },
+        { id: "idle", lane: null, at: 4 },
+        { id: "done-new", lane: "done" as const, at: 9 },
       ],
       laneOf: (thread) => thread.lane,
+      activityMsOf: (thread) => thread.at,
     });
     expect(stream.needsYou.map((thread) => thread.id)).toEqual(["approve"]);
     expect(stream.working.map((thread) => thread.id)).toEqual(["run"]);
+    expect(stream.done.map((thread) => thread.id)).toEqual(["done-new", "done-old"]);
   });
 });
 
@@ -84,21 +87,6 @@ describe("orderSidebarProjectFolders", () => {
       "empty",
       "archived",
     ]);
-  });
-});
-
-describe("sidebarActivityDayBuckets", () => {
-  it("counts activity per day, oldest first, ignoring out-of-range timestamps", () => {
-    expect(
-      sidebarActivityDayBuckets(
-        [NOW, NOW - HOUR, NOW - DAY - HOUR, NOW - 6 * DAY - HOUR, NOW - 7 * DAY, NOW + HOUR, NaN],
-        NOW,
-      ),
-    ).toEqual([1, 0, 0, 0, 0, 1, 2]);
-  });
-
-  it("returns null when nothing happened in the window", () => {
-    expect(sidebarActivityDayBuckets([NOW - 8 * DAY], NOW)).toBeNull();
   });
 });
 
