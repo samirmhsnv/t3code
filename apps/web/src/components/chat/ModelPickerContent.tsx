@@ -958,7 +958,9 @@ export const ModelPickerContent = memo(function ModelPickerContent(props: {
           className={cn(
             "relative flex w-screen flex-col overflow-hidden bg-muted/40",
             props.docked
-              ? "max-h-(--available-height) max-w-180 max-md:max-w-110 max-sm:w-full max-sm:max-w-none"
+              ? // A viewport cap, not --available-height: the popup shifts to fit, and a height that
+                // follows the shifted spot would shift it back, so it shook.
+                "max-h-[calc(100dvh-1rem)] max-w-180 max-md:max-w-110 max-sm:w-full max-sm:max-w-none"
               : "h-80 max-w-130 max-md:max-w-90",
           )}
           data-model-picker-content="true"
