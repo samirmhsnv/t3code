@@ -2359,6 +2359,14 @@ code {
   inset-inline-end: calc(var(--workspace-controls-right) + var(--thread-details-panel-width));
 }
 
+/* The composer overlay draws one blur behind its whole area; a second glass under the context row
+   showed as a lighter box. */
+[data-chat-composer-overlay] [data-slot="composer-context-strip"] {
+  background: transparent;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
 /* With no right panel, the inline details column runs the window's right edge from the top bar
    to the status bar, beside the panel controls. */
 :root:not(:has([data-preview-panel-mode="inline"])) [data-thread-details-panel="inline"] {
