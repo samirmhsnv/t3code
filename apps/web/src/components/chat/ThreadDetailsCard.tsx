@@ -76,8 +76,7 @@ export function ThreadDetailsCard({
     return observeResize(element, measure);
   }, [columnElement, cardWidth, measureDetailsCard, environmentId, threadId]);
   const cardClassName = "dropdown-glass isolate contain-paint overflow-hidden rounded-2xl";
-  // Cards keep their full height and the column scrolls as one; inline, the column runs to the
-  // bottom and its last card takes the rest.
+  // Cards keep their content height and the column scrolls as one once they outgrow it.
   const card = (
     <ScrollArea
       scrollFade
@@ -89,16 +88,7 @@ export function ThreadDetailsCard({
       // Inline, the column fills its aside, which the window may stretch to its full height.
       style={placement ? { height: "100%" } : undefined}
     >
-      <div
-        ref={setColumnElement}
-        className={cn(
-          "flex flex-col gap-3",
-          placement &&
-            // The last card that shows takes the rest; a card shows while it holds a section.
-            "min-h-full [&>[data-thread-details-card]:not(:has(~[data-thread-details-card]_section))]:grow",
-        )}
-        onContextMenu={onContextMenu}
-      >
+      <div ref={setColumnElement} className="flex flex-col gap-3" onContextMenu={onContextMenu}>
         <div className={cardClassName} data-thread-details-card>
           {children("full")}
         </div>
