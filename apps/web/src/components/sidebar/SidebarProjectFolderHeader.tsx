@@ -11,6 +11,7 @@ import { useUiStateStore } from "../../uiStateStore";
 import { resolveSidebarFolderDot, resolveThreadLastVisitedAt } from "../Sidebar.logic";
 import { Button } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
+import { SidebarActivityStrip } from "./SidebarStreamSections";
 
 const FOLDER_DOT_CLASS_NAME = {
   attention: "bg-warning",
@@ -40,6 +41,8 @@ export const SidebarProjectFolderHeader = memo(function SidebarProjectFolderHead
   group: SidebarProjectSnapshot;
   collapsed: boolean;
   hiddenThreads: readonly EnvironmentThreadShell[];
+  /** Threads active per day over the last week, oldest first. */
+  activity?: readonly number[] | null | undefined;
   onToggle: (group: SidebarProjectSnapshot) => void;
   onNewThread: (group: SidebarProjectSnapshot) => void;
   onContextMenu: (
@@ -91,6 +94,11 @@ export const SidebarProjectFolderHeader = memo(function SidebarProjectFolderHead
         {dot ? (
           <span className={cn("size-1.5 shrink-0 rounded-full", FOLDER_DOT_CLASS_NAME[dot])}>
             <span className="sr-only">{FOLDER_DOT_LABEL[dot]}</span>
+          </span>
+        ) : null}
+        {props.activity ? (
+          <span className="inline-flex shrink-0 group-hover/project-folder:invisible group-has-[[data-sidebar-action-for]:focus]/project-folder:invisible pointer-coarse:invisible">
+            <SidebarActivityStrip buckets={props.activity} />
           </span>
         ) : null}
         {collapsed && hiddenThreads.length > 0 ? (

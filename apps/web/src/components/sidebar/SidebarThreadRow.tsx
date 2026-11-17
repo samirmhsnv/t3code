@@ -73,6 +73,7 @@ import {
 import { useRightPanelStore } from "../../rightPanelStore";
 import { useOpenPrLink } from "../../lib/openPullRequestLink";
 import { SidebarThreadPipeline, SidebarThreadRoleTag } from "./SidebarThreadRowBadges";
+import { sidebarStreamActivity, sidebarStreamLane } from "./sidebarStream.logic";
 import { useUiStateStore } from "../../uiStateStore";
 import { useThreadSelectionStore } from "../../threadSelectionStore";
 import { useNowMinute } from "../../hooks/useNowMinute";
@@ -576,7 +577,8 @@ type SidebarThreadRowProps = {
   thread: SidebarThreadSummary;
   // "folder" is a one-line row inside a boring sidebar project folder;
   // "folder-multiline" adds the card's branch and PR line under it.
-  variant: "card" | "slim" | "folder" | "folder-multiline";
+  // "stream" is the two-line in-play card; "recent" a one-line row with its project tag.
+  variant: "card" | "slim" | "folder" | "folder-multiline" | "stream" | "recent";
   navigationParent?: string | undefined;
   variantAction: SidebarSweepAction;
   settlementSupported: boolean;
@@ -1248,8 +1250,165 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
     </span>
   ) : null;
 
+  if (variant === "stream") {
+    const needsYou = sidebarStreamLane(thread, status) === "needs-you";
+    const isWorking = status === "preparing" || status === "working" || status === "waiting";
+    return (
+      <li
+        data-thread-item={threadKey}
+        {...sortableRootProps}
+        {...(fileDropHandlers ?? {})}
+        className={cn("list-none py-0.5", sortable?.isDragging && "relative z-20")}
+      >
+        <Tooltip disabled={isRenaming || sortable?.isDragging}>
+          <TooltipTrigger
+            render={
+              <div
+                ref={rowRef}
+                role="button"
+                tabIndex={0}
+                data-sidebar-row={threadKey}
+                data-sidebar-parent={props.navigationParent}
+                aria-label={accessibility.label}
+                aria-current={accessibility.current}
+                data-testid="sidebar-row-stream"
+                aria-busy={isRegeneratingTitle || undefined}
+                className={cn(
+                  rowSurfaceClassName,
+                  "flex flex-col gap-0.5 py-1.5 ps-3 pe-2.5",
+                  !props.isActive && !isSelected && "bg-sidebar-row-hover/50",
+                )}
+                onClick={handleClick}
+                onDoubleClick={handleDoubleClick}
+                onKeyDown={handleKeyDown}
+                onContextMenu={handleContextMenu}
+              />
+            }
+          >
+            {needsYou || props.isActive ? (
+              <span
+                aria-hidden
+                className={cn(
+                  "absolute inset-y-1.5 left-0 w-0.5 rounded-full",
+                  needsYou ? "bg-warning" : "bg-primary",
+                )}
+              />
+            ) : null}
+            <div className="flex h-6 min-w-0 items-center gap-2">
+              {topStatus ? (
+                <TopStatusIcon
+                  icon={topStatus.icon}
+                  className={cn("size-3.5", topStatus.className)}
+                />
+              ) : (
+                <span className="inline-flex size-3.5 shrink-0 items-center justify-center">
+                  <FolderStatusGlyph status={status} isUnread={isUnread} />
+                </span>
+              )}
+              {draftIndicator}
+              {title}
+              {pinIndicator}
+              {terminalStatusIcon}
+              {sortable?.isDragging ? (
+                dragDestination
+              ) : (
+                <span
+                  className={cn(
+                    "relative ml-auto flex h-6 min-w-6 shrink-0 items-center justify-end",
+                    props.sweepAction !== null && "hidden",
+                    jumpHintLabel && JUMP_HINT_SLOT_CLASS_NAME,
+                  )}
+                >
+                  <span
+                    aria-hidden
+                    className="inline-flex items-center group-any-hover/sidebar-row:opacity-0"
+                  >
+                    <SidebarProviderStack
+                      thread={thread}
+                      providerEntryByInstanceId={props.providerEntryByInstanceId}
+                    />
+                  </span>
+                  {props.settlementSupported ? (
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <button
+                            type="button"
+                            aria-label="Settle thread"
+                            onClick={handleSettleClick}
+                            onPointerDown={handleActionPointerDown}
+                            className="pointer-events-none absolute inset-y-0 right-0 -mr-1 inline-flex cursor-pointer items-center rounded-md bg-transparent px-1.5 text-muted-foreground opacity-0 transition-opacity hover:text-foreground focus-visible:pointer-events-auto focus-visible:opacity-100 group-any-hover/sidebar-row:pointer-events-auto group-any-hover/sidebar-row:opacity-100"
+                          />
+                        }
+                      >
+                        <CheckIcon className="size-3" />
+                      </TooltipTrigger>
+                      <TooltipPopup side="top">Settle thread</TooltipPopup>
+                    </Tooltip>
+                  ) : null}
+                  {jumpHintLabel ? <JumpHintBadge label={jumpHintLabel} /> : null}
+                </span>
+              )}
+              {props.sweepAction !== null ? dragDestination : null}
+            </div>
+            <div className="flex min-w-0 items-center gap-1.5 ps-5.5 text-xs text-secondary-label">
+              <span
+                className={cn(
+                  "min-w-0 shrink truncate",
+                  needsYou ? "font-medium text-warning-foreground" : topStatus?.className,
+                )}
+              >
+                {sidebarStreamActivity(thread, status)}
+              </span>
+              <span className="flex min-w-0 flex-1 items-center gap-1.5 truncate">
+                <span aria-hidden>·</span>
+                <EnvironmentMachineIcon
+                  aria-hidden
+                  kind={isRemote ? props.environmentMachine : "desktop"}
+                  className="size-3 shrink-0"
+                />
+                <span className="shrink-0">
+                  {isRemote ? (props.environmentLabel ?? "Remote") : "This device"}
+                </span>
+                {props.projectDisplayName ? (
+                  <>
+                    <span aria-hidden>·</span>
+                    <span className="min-w-0 truncate">{props.projectDisplayName}</span>
+                  </>
+                ) : null}
+                <span aria-hidden>·</span>
+                <span className="shrink-0">
+                  {isWorking ? (
+                    <WorkingDuration
+                      environmentId={thread.environmentId}
+                      startedAt={
+                        status === "waiting"
+                          ? (thread.latestRun?.completedAt ?? null)
+                          : resolveWorkingStartedAt(thread)
+                      }
+                    />
+                  ) : (
+                    <RelativeTimeLabel timestamp={resolveThreadActivityTimestamp(thread)} />
+                  )}
+                </span>
+              </span>
+              <SidebarThreadRoleTag thread={thread} />
+            </div>
+            {isRegeneratingTitle ? (
+              <span role="status" className="sr-only">
+                Regenerating title
+              </span>
+            ) : null}
+          </TooltipTrigger>
+          {detailsTooltip}
+        </Tooltip>
+      </li>
+    );
+  }
+
   if (variant !== "card") {
     const multiline = variant === "folder-multiline";
+    const recent = variant === "recent";
     const inFolder = variant === "folder" || multiline;
     return (
       <li
@@ -1273,7 +1432,13 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                 data-sidebar-parent={props.navigationParent}
                 aria-label={accessibility.label}
                 aria-current={accessibility.current}
-                data-testid={inFolder ? "sidebar-row-folder" : "sidebar-row-slim"}
+                data-testid={
+                  inFolder
+                    ? "sidebar-row-folder"
+                    : recent
+                      ? "sidebar-row-recent"
+                      : "sidebar-row-slim"
+                }
                 aria-busy={isRegeneratingTitle || undefined}
                 className={cn(
                   rowSurfaceClassName,
@@ -1282,7 +1447,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                     : "flex h-9 items-center gap-2.5 px-2.5",
                   // Lines titles up with the folder name, past its chevron and icon.
                   inFolder && "ps-9",
-                  variant === "folder" && "gap-2 ps-2.5",
+                  (variant === "folder" || recent) && "gap-2 ps-2.5",
                   variant === "folder" &&
                     variantAction === "unsettle" &&
                     // Grayscale skips the pipeline bars, whose colors carry the PR stage.
@@ -1297,7 +1462,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
           >
             {/* `contents` keeps one-line rows a single flex row. */}
             <div className={multiline ? "flex h-6 min-w-0 items-center gap-2.5" : "contents"}>
-              {inFolder ? null : (
+              {inFolder || recent ? null : (
                 <span
                   className={cn(
                     "flex shrink-0 items-center transition-opacity",
@@ -1310,6 +1475,11 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                   ) : null}
                 </span>
               )}
+              {recent ? (
+                <span className="inline-flex size-4 shrink-0 items-center justify-center">
+                  <FolderStatusGlyph status={status} isUnread={isUnread} />
+                </span>
+              ) : null}
               {variant === "folder" ? (
                 <>
                   <span className="inline-flex shrink-0 items-center text-sidebar-muted-foreground/70">
@@ -1330,6 +1500,17 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                 <>
                   <SidebarThreadRoleTag thread={thread} />
                   <SidebarThreadPipeline thread={thread} />
+                </>
+              ) : null}
+              {recent ? (
+                <>
+                  <SidebarThreadPipeline thread={thread} />
+                  {props.projectDisplayName ? (
+                    // The title keeps the room; a long owner/repo tag shrinks to its repo name.
+                    <span className="min-w-0 max-w-20 shrink-[2] truncate rounded-sm bg-sidebar-row-hover px-1.5 text-2xs leading-4 text-secondary-label">
+                      {props.projectDisplayName.split("/").pop()}
+                    </span>
+                  ) : null}
                 </>
               ) : null}
               {multiline ? titleLineIcons : null}
