@@ -76,7 +76,8 @@ export function ThreadDetailsCard({
     return observeResize(element, measure);
   }, [columnElement, cardWidth, measureDetailsCard, environmentId, threadId]);
   const cardClassName = "dropdown-glass isolate contain-paint overflow-hidden rounded-2xl";
-  // Cards keep their full height; the column scrolls as one.
+  // Cards keep their full height and the column scrolls as one; inline, the column runs to the
+  // bottom and its last card takes the rest.
   const card = (
     <ScrollArea
       scrollFade
@@ -85,9 +86,13 @@ export function ThreadDetailsCard({
         mode === "popover" &&
           "max-h-[min(calc(100dvh-6.5rem),calc(var(--available-height,100dvh)-1rem))]",
       )}
-      style={placement ? { maxHeight: height } : undefined}
+      style={placement ? { height } : undefined}
     >
-      <div ref={setColumnElement} className="flex flex-col gap-3" onContextMenu={onContextMenu}>
+      <div
+        ref={setColumnElement}
+        className={cn("flex flex-col gap-3", placement && "min-h-full [&>*:last-child]:grow")}
+        onContextMenu={onContextMenu}
+      >
         <div className={cardClassName} data-thread-details-card>
           {children("full")}
         </div>
@@ -136,7 +141,7 @@ export function ThreadDetailsCard({
             right: placement.right,
             top: placement.y,
             width: placement.width,
-            maxHeight: height,
+            height,
           }}
           data-thread-details-panel="inline"
         >

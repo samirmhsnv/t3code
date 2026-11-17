@@ -2327,6 +2327,13 @@ code {
   --diff-deletion-foreground: light-dark(var(--color-red-700), var(--color-red-400));
 }
 
+/* The window's panel controls sit left of an inline thread details column, which owns the
+   right edge from the top bar down. A right panel takes that edge instead. */
+:root:has([data-thread-details-panel="inline"]):not(:has([data-preview-panel-mode="inline"]))
+  [data-window-panel-controls] {
+  right: calc(var(--workspace-controls-right) + var(--thread-details-panel-width) + 0.5rem);
+}
+
 /* Chat width setting. Comfortable keeps the default --chat-content-max-width,
    which sizes the timeline lane, the composer, and ChatCanvas's width probe. */
 :root[data-chat-width="wide"] {

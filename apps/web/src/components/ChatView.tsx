@@ -3813,8 +3813,8 @@ export default function ChatView(props: ChatViewProps) {
                         <div className="min-h-0">
                           <div
                             data-terminal-open={terminalUiState.terminalOpen ? "true" : undefined}
-                            // The whole strip blurs the timeline scrolling under it.
-                            className="surface-glass relative z-0 flex min-w-0 items-start"
+                            // The whole strip blurs the timeline scrolling under it, thin enough to show it.
+                            className="surface-glass relative z-0 flex min-w-0 items-start [--glass-opacity:55%]"
                           >
                             {showComposerContextStrip && (
                               <div className="pointer-events-auto min-w-0 flex-1">
@@ -3898,7 +3898,7 @@ export default function ChatView(props: ChatViewProps) {
                       // Continues the strip's glass to the bottom edge, so no timeline text shows below it.
                       className={cn(
                         "h-[calc(env(safe-area-inset-bottom)+1rem)] sm:h-[calc(env(safe-area-inset-bottom)+1.25rem)]",
-                        !isDraftHeroState && "surface-glass",
+                        !isDraftHeroState && "surface-glass [--glass-opacity:55%]",
                       )}
                     />
                   </div>

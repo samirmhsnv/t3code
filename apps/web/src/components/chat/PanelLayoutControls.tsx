@@ -229,6 +229,7 @@ export function WorkspaceTitlebarControls(props: {
         mobileSidebarSheetMounted && "hidden",
       )}
       data-workspace-titlebar-controls
+      data-window-panel-controls
     >
       {props.showMaximizeControl ? (
         <span

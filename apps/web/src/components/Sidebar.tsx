@@ -527,14 +527,12 @@ function useSidebarThreads(input: {
     : routeThreadOnly(workingThreads, routeRowThreadKey);
   const activityMsOf = (thread: EnvironmentThreadShell) =>
     firstValidTimestampMs(resolveThreadActivityTimestamp(thread), thread.updatedAt);
-  // Live threads lead the stream; a finished run stays in Done until the thread is settled.
+  // Live threads lead the stream; a finished run waits in Done until it is opened.
   const stream = buildSidebarStream({
     threads: folderGroups === null ? EMPTY_THREADS : activeThreads,
     laneOf: (thread) => {
       const localLastVisitedAt = threadLastVisitedAtById[threadShellKey(thread)];
-      if (!isThreadInPlay(thread, localLastVisitedAt)) {
-        return thread.latestRun?.completedAt ? "done" : null;
-      }
+      if (!isThreadInPlay(thread, localLastVisitedAt)) return null;
       return sidebarStreamLane(
         thread,
         resolveSidebarRowStatus({
@@ -1339,8 +1337,8 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
           [...scopeGroups, ...projectGroups.filter((project) => project.archived)]
         : scopedProjectGroups
       : null,
-    keepEmptyFolders: (group) =>
-      scopedProjectGroups.length > 0 || (group.pinned && !group.archived),
+    // Every project keeps its folder, even while its threads sit in the stream above.
+    keepEmptyFolders: (group) => scopedProjectGroups.length > 0 || !group.archived,
   });
 
   // Ranked across environments as the palette ranks them, so one
