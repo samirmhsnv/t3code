@@ -16,6 +16,7 @@ import {
   ServerSettings,
   ServerSettingsPatch,
   UsageLimitSourceId,
+  type SimlockDeviceHostConfig,
 } from "@t3tools/contracts";
 import { createModelSelection } from "@t3tools/shared/model";
 import { assert, it } from "@effect/vitest";
@@ -1766,7 +1767,6 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("server settings"
         const router = ProviderInstanceId.make("openrouter");
         const withUsage = yield* serverSettings.updateSettings({
           cloudSpeechCredentials: { openai: usageReference, xai: "literal-fixture" },
-          issueTrackerCredentials: { linear: usageReference },
           textGenerators: {
             [router]: {
               kind: "openaiCompatible",
@@ -1825,7 +1825,6 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("server settings"
           xai: SECRET_REDACTED,
           openrouter: "",
         });
-        assert.deepEqual(legacy.issueTrackerCredentials, { linear: SECRET_REDACTED, deckbell: "" });
         assert.equal(legacy.sourceControlHosts.bitbucket?.accessToken, SECRET_REDACTED);
         assert.equal(legacy.usageLimitSources[hub]?.managementKey, SECRET_REDACTED);
         assert.equal(legacy.textGenerators[router]?.apiKey, SECRET_REDACTED);
@@ -1837,7 +1836,6 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("server settings"
         assert.equal(configOf(legacy, openCode)?.serverPassword, SECRET_REDACTED);
         const echoed = yield* serverSettings.updateSettings({
           cloudSpeechCredentials: legacy.cloudSpeechCredentials,
-          issueTrackerCredentials: legacy.issueTrackerCredentials,
           sourceControlHosts: legacy.sourceControlHosts,
           usageLimitSources: legacy.usageLimitSources,
           textGenerators: legacy.textGenerators,
@@ -1857,12 +1855,29 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("server settings"
           xai: "literal-fixture",
           openrouter: "",
         });
-        assert.deepEqual(echoed.issueTrackerCredentials.linear, usageReference);
         assert.deepEqual(echoed.easDeviceHosts[0]?.accessToken, easReference);
         assert.deepEqual(echoed.simlockDeviceHosts[0]?.agentToken, simlockReference);
         assert.deepEqual(configOf(echoed, antigravity)?.apiKey, antigravityReference);
         assert.deepEqual(configOf(echoed, openCode)?.serverPassword, openCodeReference);
         assert.isTrue(Option.isSome(yield* stored("github", "tokens", "ghe.acme.test")));
+        // A saved token goes only to the gateway it was saved for, however it is echoed.
+        const moved = (agentToken: SimlockDeviceHostConfig["agentToken"]) =>
+          serverSettings.updateSettings({
+            simlockDeviceHosts: [
+              {
+                ...echoed.simlockDeviceHosts[0]!,
+                gatewayUrl: "https://elsewhere.test",
+                agentToken,
+              },
+            ],
+          });
+        assert.equal((yield* moved(SECRET_REDACTED)).simlockDeviceHosts[0]?.agentToken, "");
+        yield* serverSettings.updateSettings({ simlockDeviceHosts: echoed.simlockDeviceHosts });
+        assert.equal((yield* moved(simlockReference)).simlockDeviceHosts[0]?.agentToken, "");
+        assert.equal(
+          (yield* moved("typed-token")).simlockDeviceHosts[0]?.agentToken,
+          "typed-token",
+        );
       }).pipe(Effect.provide(layerServerSettingsWithSecrets())),
   );
 
@@ -1955,8 +1970,6 @@ it.layer(Layer.mergeAll(NodeServices.layer, NodeCrypto.layer))("server settings"
         "cloudSpeechCredentials.openai",
         "cloudSpeechCredentials.xai",
         "cloudSpeechCredentials.openrouter",
-        "issueTrackerCredentials.linear",
-        "issueTrackerCredentials.deckbell",
         "easDeviceHosts.[].accessToken",
         "simlockDeviceHosts.[].agentToken",
         "usageLimitSources.*.managementKey",

@@ -114,8 +114,9 @@ import * as ProviderMaintenanceRunner from "./provider/providerMaintenanceRunner
 import * as ProviderRegistry from "./provider/ProviderRegistry.ts";
 import * as ProviderSessionManager from "./orchestration-v2/ProviderSessionManager.ts";
 import * as PullRequestReviewGuideService from "./pullRequest/PullRequestReviewGuideService.ts";
+import * as IssueService from "./issue/IssueService.ts";
+import * as IssueTrackerConnections from "./issue/IssueTrackerConnections.ts";
 import * as PullRequestService from "./pullRequest/PullRequestService.ts";
-import * as IssueTrackers from "./issues/IssueTrackers.ts";
 import * as GitHubBilling from "./sourceControl/GitHubBilling.ts";
 import * as ProjectRepositories from "./sourceControl/ProjectRepositories.ts";
 import * as PullRequestSyncReactor from "./orchestration-v2/PullRequestSyncReactor.ts";
@@ -861,7 +862,8 @@ const layerUnusedConfigRpcServices = Layer.mergeAll(
   Layer.mock(ProviderSessionManager.ProviderSessionManagerV2)({}),
   Layer.mock(PullRequestReviewGuideService.PullRequestReviewGuideService)({}),
   Layer.mock(PullRequestService.PullRequestService)({}),
-  Layer.mock(IssueTrackers.IssueTrackers)({}),
+  Layer.mock(IssueService.IssueService)({}),
+  Layer.mock(IssueTrackerConnections.IssueTrackerConnections)({}),
   Layer.mock(GitHubBilling.GitHubBilling)({}),
   Layer.mock(ProjectRepositories.ProjectRepositories)({}),
   Layer.mock(PullRequestSyncReactor.PullRequestSyncReactor)({}),

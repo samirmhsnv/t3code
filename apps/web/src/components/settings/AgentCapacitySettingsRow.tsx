@@ -9,13 +9,14 @@ import {
   NumberFieldInput,
 } from "../ui/number-field";
 import { SettingResetButton, SettingsRow } from "./settingsLayout";
-import { searchableSetting } from "./settingsSearch";
+import { useSearchableSetting } from "./settingsSearch";
 import { useUpdateScopedSettings } from "./useScopedSettings";
 
 /** The status bar's working count reads against this, such as 3/8. */
 export function AgentCapacitySettingsRow() {
   const limit = useClientSettings((settings) => settings.agentCapacityLimit);
   const updateSettings = useUpdateScopedSettings();
+  const searchableSetting = useSearchableSetting();
   return (
     <SettingsRow
       {...searchableSetting("agent-capacity")}
@@ -24,7 +25,7 @@ export function AgentCapacitySettingsRow() {
       resetAction={
         limit !== DEFAULT_AGENT_CAPACITY_LIMIT ? (
           <SettingResetButton
-            label="agent capacity"
+            ariaLabel="Reset agent capacity to default"
             onClick={() => updateSettings({ agentCapacityLimit: DEFAULT_AGENT_CAPACITY_LIMIT })}
           />
         ) : null

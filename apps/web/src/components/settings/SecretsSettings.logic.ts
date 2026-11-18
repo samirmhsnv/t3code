@@ -2,8 +2,6 @@ import {
   CLOUD_SPEECH_LABELS,
   CloudSpeechProvider,
   EasDeviceHostConfig,
-  ISSUE_SOURCE_LABELS,
-  IssueSource,
   isSecretReference,
   secretReferencesInSettings,
   type ServerSettings,
@@ -13,6 +11,9 @@ import {
 } from "@t3tools/contracts";
 import { getProviderClient } from "@t3tools/client-runtime/provider-clients";
 import { sourceControlClients } from "@t3tools/client-runtime/source-control-clients";
+import { msg } from "gt-react";
+
+import { m, type MessageResolver } from "../../i18n/messages";
 
 import { deriveProviderSettingsFields, type SettingsFormDefinition } from "./ProviderSettingsForm";
 
@@ -25,7 +26,6 @@ type SecretUseSettings = Pick<
   | "easDeviceHosts"
   | "simlockDeviceHosts"
   | "cloudSpeechCredentials"
-  | "issueTrackerCredentials"
 >;
 
 interface SecretProviderUse {
@@ -37,6 +37,7 @@ interface SecretProviderUse {
 export function secretProviderUses(
   settings: SecretUseSettings,
   providerId: string,
+  resolve: MessageResolver = m,
 ): ReadonlyArray<SecretProviderUse> {
   const uses = (
     definition: SettingsFormDefinition,
@@ -45,7 +46,9 @@ export function secretProviderUses(
     value: unknown,
   ): ReadonlyArray<SecretProviderUse> => {
     const labels = new Map(
-      deriveProviderSettingsFields(definition).map((field) => [field.key, field.label] as const),
+      deriveProviderSettingsFields(definition, undefined, resolve).map(
+        (field) => [field.key, field.label] as const,
+      ),
     );
     return secretReferencesInSettings(definition.settingsSchema, value).flatMap(
       ({ field, key, reference }) =>
@@ -113,13 +116,14 @@ export function secretProviderUses(
     ...CloudSpeechProvider.literals.flatMap((provider) => {
       const credential = settings.cloudSpeechCredentials[provider];
       return isSecretReference(credential) && credential.provider === providerId
-        ? [{ id: `voice:${provider}`, label: `Voice · ${CLOUD_SPEECH_LABELS[provider]}` }]
-        : [];
-    }),
-    ...IssueSource.literals.flatMap((source) => {
-      const credential = settings.issueTrackerCredentials[source];
-      return isSecretReference(credential) && credential.provider === providerId
-        ? [{ id: `issues:${source}`, label: `Issues · ${ISSUE_SOURCE_LABELS[source]}` }]
+        ? [
+            {
+              id: `voice:${provider}`,
+              label: resolve(
+                msg("Voice · {provider}", { provider: CLOUD_SPEECH_LABELS[provider] }),
+              ),
+            },
+          ]
         : [];
     }),
   ];

@@ -124,7 +124,6 @@ export const invalidateSettingsSecrets = Effect.fn("SettingsSecrets.invalidate")
       | "easDeviceHosts"
       | "simlockDeviceHosts"
       | "cloudSpeechCredentials"
-      | "issueTrackerCredentials"
     >,
     E
   >,
@@ -138,7 +137,6 @@ export const invalidateSettingsSecrets = Effect.fn("SettingsSecrets.invalidate")
       ),
       ...collectDeviceHostSecretReferences(current),
       ...Object.values(current.cloudSpeechCredentials).filter(isSecretReference),
-      ...Object.values(current.issueTrackerCredentials).filter(isSecretReference),
     ]),
     Effect.orElseSucceed(() => undefined),
   );

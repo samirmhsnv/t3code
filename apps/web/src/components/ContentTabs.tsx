@@ -4,9 +4,9 @@ import { useState, type ReactNode } from "react";
 
 import { cn } from "~/lib/utils";
 import { isElectron } from "../env";
-import { useIssueList } from "../state/issues";
 import { openThreadLinkedPullRequestCountAtom } from "../state/pullRequests";
 import { readPullRequestListPreferences } from "./pullRequest/pullRequestListPreferences";
+import { readIssueListPreferences } from "./issue/issueListPreferences";
 import { Badge } from "./ui/badge";
 import { useNavigateToMainApp } from "./sidebar/mainAppLocation";
 import { ContentTabsChatSlot } from "./contentTabsChatSlot";
@@ -25,7 +25,6 @@ export function ContentTabs({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const navigateToMainApp = useNavigateToMainApp();
   const pullRequestCount = useAtomValue(openThreadLinkedPullRequestCountAtom);
-  const issueCount = useIssueList().data?.issues.length ?? 0;
   const active = activeContentTab(pathname);
   const [chatSlot, setChatSlot] = useState<HTMLElement | null>(null);
 
@@ -60,9 +59,8 @@ export function ContentTabs({ children }: { children: ReactNode }) {
         )}
         <ContentTabButton
           label="Issues"
-          count={issueCount}
           active={active === "issues"}
-          onClick={() => void navigate({ to: "/issues" })}
+          onClick={() => void navigate({ to: "/issues", search: readIssueListPreferences() })}
         />
         <ContentTabButton
           label="PRs"

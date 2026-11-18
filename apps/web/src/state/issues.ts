@@ -1,41 +1,46 @@
-import { createIssueEnvironmentAtoms } from "@t3tools/client-runtime/state/issues";
-import type { IssueListScope, IssueReference, IssueSource } from "@t3tools/contracts";
+import {
+  createIssueEnvironmentAtoms,
+  createMergedIssueCandidatesAtoms,
+  createMergedIssueListAtoms,
+  type IssueCandidatesTarget,
+  type IssueListTarget,
+  type MergedIssueList,
+} from "@t3tools/client-runtime/state/issues";
+import { useAtomValue } from "@effect/atom-react";
+import type { EnvironmentId } from "@t3tools/contracts";
 
 import { connectionAtomRuntime } from "../connection/runtime";
-import { usePrimaryEnvironmentId } from "./environments";
-import { useEnvironmentQuery } from "./query";
+import { appAtomRegistry } from "../rpc/atomRegistry";
+import { formatEnvironmentQueryError } from "./query";
+
+export type { IssueListTarget };
 
 export const issueEnvironment = createIssueEnvironmentAtoms(connectionAtomRuntime);
 
-/** The primary environment's open issues from Linear and Deckbell, assigned to the viewer by default. */
-export function useIssueList(scope: IssueListScope = "assigned") {
-  const environmentId = usePrimaryEnvironmentId();
-  return useEnvironmentQuery(
-    environmentId === null
-      ? null
-      : issueEnvironment.list({ environmentId, input: scope === "assigned" ? {} : { scope } }),
-  );
+const mergedIssueLists = createMergedIssueListAtoms(
+  issueEnvironment.list,
+  formatEnvironmentQueryError,
+);
+
+/** The same listing read across every connected environment, as the pull-request page does. */
+export function useIssueList(
+  targets: ReadonlyArray<IssueListTarget>,
+): MergedIssueList & { readonly refresh: () => void } {
+  const view = useAtomValue(mergedIssueLists.atom(targets));
+  return { ...view, refresh: () => mergedIssueLists.refresh(appAtomRegistry, targets) };
 }
 
-/** One issue with its description and comments, fetched when it opens. */
-export function useIssueDetail(issue: IssueReference | null) {
-  const environmentId = usePrimaryEnvironmentId();
-  return useEnvironmentQuery(
-    environmentId === null || issue === null
-      ? null
-      : issueEnvironment.detail({ environmentId, input: { source: issue.source, id: issue.id } }),
-  );
+/** After a write made beside the list, such as a state change in the detail panel. */
+export function refreshIssueLists(environmentId: EnvironmentId) {
+  mergedIssueLists.refreshEnvironment(appAtomRegistry, environmentId);
 }
 
-/** Teams or projects for a tracker, and for one of them what its pickers offer. */
-export function useIssueOptions(source: IssueSource | null, containerId: string | undefined) {
-  const environmentId = usePrimaryEnvironmentId();
-  return useEnvironmentQuery(
-    environmentId === null || source === null
-      ? null
-      : issueEnvironment.options({
-          environmentId,
-          input: containerId === undefined ? { source } : { source, containerId },
-        }),
-  );
+const mergedIssueCandidates = createMergedIssueCandidatesAtoms(
+  issueEnvironment.candidates,
+  formatEnvironmentQueryError,
+);
+
+/** The labels and people of every scope a list filter covers; no targets reads nothing. */
+export function useIssueFilterCandidates(targets: ReadonlyArray<IssueCandidatesTarget>) {
+  return useAtomValue(mergedIssueCandidates.atom(targets));
 }
