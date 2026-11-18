@@ -320,8 +320,8 @@ const EMPTY_THREADS: readonly EnvironmentThreadShell[] = [];
 const NEEDS_YOU_ROW_PARENT = "stream:needs-you";
 const WORKING_ROW_PARENT = "stream:working";
 const DONE_ROW_PARENT = "stream:done";
-const OPEN_FOLDER_KEY = "t3code:sidebar:open-project";
-const OPEN_FOLDER_SCHEMA = Schema.NullOr(Schema.String);
+const OPEN_FOLDER_KEY = "t3code:sidebar:open-projects";
+const OPEN_FOLDER_SCHEMA = Schema.NullOr(Schema.Array(Schema.String));
 
 const SETTLED_TAIL_INITIAL_COUNT = 10;
 const SETTLED_TAIL_PAGE_COUNT = 25;
@@ -460,7 +460,7 @@ function useSidebarThreads(input: {
     false,
     Schema.Boolean,
   );
-  const [openFolderKey, setOpenFolderKey] = useLocalStorage(
+  const [openFolderKeys, setOpenFolderKeys] = useLocalStorage(
     OPEN_FOLDER_KEY,
     null,
     OPEN_FOLDER_SCHEMA,
@@ -588,18 +588,17 @@ function useSidebarThreads(input: {
     if (entry) entry.settled = settledRefs;
     else projectThreadsByKey.set(folder.group.projectKey, { unsettled: [], settled: settledRefs });
   }
-  // Until a folder is picked, the open thread's project is the open one; "" means none.
-  const effectiveOpenFolderKey =
-    openFolderKey ??
-    groupedFolders?.find((folder) =>
-      folder.threads.some((thread) => threadShellKey(thread) === routeRowThreadKey),
-    )?.group.projectKey ??
-    "";
+  // Until a folder is toggled, the open thread's project is the open one.
+  const routeFolderKey = groupedFolders?.find((folder) =>
+    folder.threads.some((thread) => threadShellKey(thread) === routeRowThreadKey),
+  )?.group.projectKey;
+  const effectiveOpenFolderKeys: readonly string[] =
+    openFolderKeys ?? (routeFolderKey === undefined ? [] : [routeFolderKey]);
   const allProjectFolders =
     groupedFolders === null
       ? null
       : groupedFolders.map((folder) => {
-          const collapsed = folder.group.projectKey !== effectiveOpenFolderKey;
+          const collapsed = !effectiveOpenFolderKeys.includes(folder.group.projectKey);
           const activityTimes = folder.threads.map(activityMsOf);
           return {
             group: folder.group,
@@ -676,9 +675,12 @@ function useSidebarThreads(input: {
     projectFolders,
     projectThreadsByKey,
     stream,
-    // One folder opens at a time, so moving between projects never grows the list.
     toggleProjectFolder: (group: SidebarProjectSnapshot) =>
-      setOpenFolderKey(group.projectKey === effectiveOpenFolderKey ? "" : group.projectKey),
+      setOpenFolderKeys(
+        effectiveOpenFolderKeys.includes(group.projectKey)
+          ? effectiveOpenFolderKeys.filter((key) => key !== group.projectKey)
+          : [...effectiveOpenFolderKeys, group.projectKey],
+      ),
     renderedSettledThreads,
     visibleSnoozedThreads,
     visibleWorkingThreads,
@@ -3560,7 +3562,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                       }
                       return items;
                     })()}
-                    {settledShelfExpanded && hiddenSettledCount > 0 ? (
+                    {projectFolders === null && settledShelfExpanded && hiddenSettledCount > 0 ? (
                       <li className="list-none">
                         <button
                           type="button"

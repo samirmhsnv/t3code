@@ -3576,7 +3576,7 @@ export default function ChatView(props: ChatViewProps) {
                 // timeline scrolls under a single soft edge instead of separate bars.
                 <div
                   aria-hidden
-                  className="surface-glass absolute inset-x-0 -top-6 bottom-0 -z-10 [--glass-blur:20px] [--glass-opacity:55%] [mask-image:linear-gradient(to_bottom,transparent,black_3rem)]"
+                  className="surface-chrome absolute inset-x-0 -top-6 bottom-0 -z-10 [mask-image:linear-gradient(to_bottom,transparent,black_3rem)]"
                 />
               )}
               <div ref={draftHeroTransitionGroupRef} className="chat-composer-lane w-full">

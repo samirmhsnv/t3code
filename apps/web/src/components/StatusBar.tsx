@@ -65,7 +65,7 @@ export function StatusBar() {
   );
 
   return (
-    <footer className="flex h-6 shrink-0 items-center gap-2 overflow-hidden border-t border-border/60 bg-background px-3 text-2xs text-muted-foreground tabular-nums">
+    <footer className="flex h-6 shrink-0 items-center gap-2 overflow-hidden border-t border-border/60 surface-chrome [--chrome-opacity:100%] px-3 text-2xs text-muted-foreground tabular-nums">
       <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
         {limited.map((provider) => (
           <ProviderLimit

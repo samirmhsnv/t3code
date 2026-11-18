@@ -374,6 +374,22 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
   }
 }
 
+/* Fork chrome (top bar, composer, status bar): neutral white or black glass, never theme-tinted. */
+@utility surface-chrome {
+  --chrome-tint: white;
+  background: color-mix(in srgb, var(--chrome-tint) var(--chrome-opacity, 55%), transparent);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+
+  @variant dark {
+    --chrome-tint: oklch(0.145 0 0);
+  }
+
+  @supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+    background: var(--chrome-tint) !important;
+  }
+}
+
 @utility alert-glass {
   --alert-glass-tint: transparent;
   background:
@@ -2335,16 +2351,12 @@ code {
 }
 
 /* Over a thread, the content tabs float on the timeline as glass, and the timeline starts below
-   them without its own top fade. A right panel or the attention strip keeps the bar in flow. */
-[data-content-tabs]:has([data-chat-canvas]):not(
-    :has([data-preview-panel-mode="inline"], [aria-label="Needs attention"])
-  ) {
+   them without its own top fade. A right panel keeps the bar in flow. */
+[data-content-tabs]:has([data-chat-canvas]):not(:has([data-preview-panel-mode="inline"])) {
   --content-tabs-overlay: var(--workspace-topbar-height);
   --workspace-titlebar-scroll-fade-height: 0px;
 }
-[data-content-tabs]:has([data-chat-canvas]):not(
-    :has([data-preview-panel-mode="inline"], [aria-label="Needs attention"])
-  )
+[data-content-tabs]:has([data-chat-canvas]):not(:has([data-preview-panel-mode="inline"]))
   > [data-content-tabs-nav] {
   position: absolute;
   inset-inline: 0;
@@ -2353,7 +2365,7 @@ code {
 }
 /* The pinned details column owns the window's right edge, so the floating bar stops at it. */
 [data-content-tabs]:has([data-chat-canvas]):has([data-thread-details-panel="inline"]):not(
-    :has([data-preview-panel-mode="inline"], [aria-label="Needs attention"])
+    :has([data-preview-panel-mode="inline"])
   )
   > [data-content-tabs-nav] {
   inset-inline-end: calc(var(--workspace-controls-right) + var(--thread-details-panel-width));
