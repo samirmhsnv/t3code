@@ -172,7 +172,8 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
    default stacks are mirrored in `appearanceFonts.ts`. */
 @theme {
   --font-sans:
-    -apple-system, BlinkMacSystemFont, "Inter Variable", "Segoe UI", system-ui, sans-serif;
+    "Anthropic Sans", -apple-system, BlinkMacSystemFont, "Inter Variable", "Segoe UI", system-ui,
+    sans-serif;
   --font-mono:
     ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
 }
