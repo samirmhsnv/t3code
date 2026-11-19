@@ -22,12 +22,8 @@ import {
   type ThemeAppearance,
   type ThemeDefinition,
   type ThemeHalves,
-  T3_CHAT_THEME,
-  EMBER_THEME,
-  GROVE_THEME,
-  IRIS_THEME,
-  OCEAN_THEME,
 } from "../../themePalette";
+import { BUILT_IN_THEMES } from "@t3tools/shared/themePalettes";
 import {
   AlertDialog,
   AlertDialogClose,
@@ -55,13 +51,7 @@ import {
 import { ThemeWireframe } from "./ThemeWireframe";
 import { T, useGT } from "gt-react";
 
-const MAINTAINER_THEMES: ReadonlyArray<ThemeDefinition> = [
-  T3_CHAT_THEME,
-  GROVE_THEME,
-  OCEAN_THEME,
-  EMBER_THEME,
-  IRIS_THEME,
-];
+const MAINTAINER_THEMES: ReadonlyArray<ThemeDefinition> = BUILT_IN_THEMES;
 
 function collectionVariantLabels(themes: ReadonlyArray<ThemeDefinition>): ReadonlyArray<string> {
   if (themes.length === 0) return [];

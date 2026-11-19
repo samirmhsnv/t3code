@@ -40,12 +40,14 @@ export function resolveChatCanvasLayout({
   detailsCard?: PreviewMiniPlayerObstacles["detailsCard"];
   findBar?: PreviewMiniPlayerObstacles["detailsCard"];
 }) {
+  // An inline details card takes its column from the chat, which centers in what is left.
+  const areaWidth = detailsCard ? detailsCard.left : container.width;
   const centeredWidth = Math.max(0, Math.min(maxChatWidth, container.width - padding * 2));
   const laneRight = detailsCard
     ? detailsCard.left - DETAILS_CARD_CLEARANCE
     : container.width - padding;
   const normalWidth = Math.max(0, Math.min(centeredWidth, laneRight - padding));
-  const canvasCenterLeft = (container.width - normalWidth) / 2;
+  const canvasCenterLeft = (areaWidth - normalWidth) / 2;
   const normalLeft = Math.max(padding, Math.min(canvasCenterLeft, laneRight - normalWidth));
   let chat = {
     left: normalLeft,
