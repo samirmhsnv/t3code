@@ -2361,6 +2361,9 @@ code {
 [data-content-tabs]:has([data-chat-canvas]):not(:has([data-preview-panel-mode="inline"]))
   > [data-content-tabs-nav] {
   --chrome-tint: var(--background);
+  --chrome-opacity: 100%;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
   position: absolute;
   inset-inline: 0;
   top: 0;
@@ -2369,9 +2372,12 @@ code {
 
 /* The composer overlay draws one blur behind its whole area; a second glass under the context row
    showed as a lighter box. */
-/* The composer's blur takes the chat's background, so it reads as the chat fading out. */
+/* No blur behind the composer: a solid chat background that fades in above it. */
 [data-chat-composer-overlay] > .surface-chrome {
   --chrome-tint: var(--background);
+  --chrome-opacity: 100%;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
 
 [data-chat-composer-overlay] [data-slot="composer-context-strip"] {
