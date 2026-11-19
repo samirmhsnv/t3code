@@ -2352,13 +2352,6 @@ code {
   --diff-deletion-foreground: light-dark(var(--color-red-700), var(--color-red-400));
 }
 
-/* The window's panel controls sit left of an inline thread details column, which owns the
-   right edge from the top bar down. A right panel takes that edge instead. */
-:root:has([data-thread-details-panel="inline"]):not(:has([data-preview-panel-mode="inline"]))
-  [data-window-panel-controls] {
-  right: calc(var(--workspace-controls-right) + var(--thread-details-panel-width) + 0.5rem);
-}
-
 /* Over a thread, the content tabs float on the timeline as glass, and the timeline starts below
    them without its own top fade. A right panel keeps the bar in flow. */
 [data-content-tabs]:has([data-chat-canvas]):not(:has([data-preview-panel-mode="inline"])) {
@@ -2372,13 +2365,6 @@ code {
   top: 0;
   z-index: 30;
 }
-/* The pinned details column owns the window's right edge, so the floating bar stops at it. */
-[data-content-tabs]:has([data-chat-canvas]):has([data-thread-details-panel="inline"]):not(
-    :has([data-preview-panel-mode="inline"])
-  )
-  > [data-content-tabs-nav] {
-  inset-inline-end: calc(var(--workspace-controls-right) + var(--thread-details-panel-width));
-}
 
 /* The composer overlay draws one blur behind its whole area; a second glass under the context row
    showed as a lighter box. */
@@ -2386,17 +2372,6 @@ code {
   background: transparent;
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
-}
-
-/* With no right panel, the inline details column runs the window's right edge from the top bar
-   to the status bar, beside the panel controls. */
-:root:not(:has([data-preview-panel-mode="inline"])) [data-thread-details-panel="inline"] {
-  position: fixed;
-  top: calc(var(--workspace-controls-top) + 0.5rem) !important;
-  right: var(--workspace-controls-right) !important;
-  bottom: calc(var(--app-status-bar-height) + 0.75rem);
-  height: auto !important;
-  max-height: none !important;
 }
 
 /* Chat width setting. Comfortable keeps the default --chat-content-max-width,
