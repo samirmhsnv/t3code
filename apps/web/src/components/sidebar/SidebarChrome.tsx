@@ -16,7 +16,8 @@ import { SidebarFooter, SidebarMenu, SidebarTrigger, useSidebar } from "../ui/si
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { SidebarThreadUndoNotice } from "./SidebarThreadUndoNotice";
 import { SidebarProviderUpdatePill } from "./SidebarProviderUpdatePill";
-import { SidebarUpdateArchitectureWarning, SidebarUpdatePill } from "./SidebarUpdatePill";
+import { SidebarUpdateArchitectureWarning } from "./SidebarUpdatePill";
+import { SidebarProviderUpdateButton } from "./SidebarProviderUpdateButton";
 import { observeResize } from "~/lib/observeResize";
 
 export const SidebarChromeHeader = memo(function SidebarChromeHeader({
@@ -53,9 +54,7 @@ export const SidebarChromeHeader = memo(function SidebarChromeHeader({
         <div className="flex shrink-0 items-center gap-1">
           <SidebarBrand onBackdrop={false} />
           <SettingsButton />
-          <ul className="flex items-center [-webkit-app-region:no-drag]">
-            <SidebarUpdatePill />
-          </ul>
+          <SidebarProviderUpdateButton />
         </div>
         {pillLabel ? (
           <div className="ml-1 flex h-7 items-center">
