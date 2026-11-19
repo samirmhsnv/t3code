@@ -101,6 +101,13 @@ export function ChatCanvas({
       }
       const canvasBounds = element.getBoundingClientRect();
       const findBarBounds = findBar?.getBoundingClientRect();
+      const tabsNav = element
+        .closest("[data-content-tabs]")
+        ?.querySelector<HTMLElement>(":scope > [data-content-tabs-nav]");
+      const topOverlay =
+        tabsNav && getComputedStyle(tabsNav).position === "absolute"
+          ? Math.max(0, tabsNav.getBoundingClientRect().bottom - canvasBounds.top)
+          : 0;
       const styles = getComputedStyle(probe);
       store.getState().setMeasurements({
         findBar:
@@ -121,6 +128,7 @@ export function ChatCanvas({
         timelineGutter: timelineElement
           ? (timelineElement.offsetWidth - timelineElement.clientWidth) / 2
           : 0,
+        topOverlay,
       });
     };
     measure();

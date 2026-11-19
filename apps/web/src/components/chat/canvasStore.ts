@@ -22,6 +22,8 @@ export interface ChatCanvasMeasurements {
   readonly timelineGutter: number;
   /** The find bar's box in canvas coordinates while it is shown. */
   readonly findBar: CanvasEdges | null;
+  /** Height of the top bar floating over the canvas, which the details card starts below. */
+  readonly topOverlay?: number;
 }
 
 interface ChatCanvasStoreState {
@@ -55,6 +57,7 @@ const sameMeasurements = (a: ChatCanvasMeasurements, b: ChatCanvasMeasurements) 
   a.minChatWidth === b.minChatWidth &&
   a.composerHeight === b.composerHeight &&
   a.timelineGutter === b.timelineGutter &&
+  a.topOverlay === b.topOverlay &&
   sameEdges(a.findBar, b.findBar);
 
 /**
@@ -97,7 +100,7 @@ export function resolveChatCanvasModel({
 }) {
   const container = { width: measurements.width, height: measurements.height };
   const { findBar } = measurements;
-  const detailsCardTopInset = findBar?.bottom ?? 0;
+  const detailsCardTopInset = Math.max(findBar?.bottom ?? 0, measurements.topOverlay ?? 0);
   const lane = { padding: measurements.padding, minChatWidth: measurements.minChatWidth };
   // The preview avoids where an open inline card would sit, whether or not a
   // preview overlap has pushed the card itself into popover mode.
