@@ -79,7 +79,7 @@ import {
   formatReadToolLabel,
   formatSearchToolLabel,
 } from "@t3tools/shared/toolActivityCopy";
-import { isWindowsAbsolutePath } from "@t3tools/shared/path";
+import { isHostPath } from "@t3tools/shared/path";
 import { sameWorkSummary, summarizeWork, type WorkSummary } from "./TimelineWorkGroupRows.logic";
 
 export function timelineEntryRunId(entry: TimelineEntry): RunId | null {
@@ -232,7 +232,7 @@ export function workEntryReadOutput(
       workEntryReadRawPaths(entry as WorkLogEntry)
         .map((path) => {
           const trimmed = path.trim().replaceAll("\\", "/");
-          if (!workspaceRoot || trimmed.startsWith("/") || isWindowsAbsolutePath(trimmed)) {
+          if (!workspaceRoot || isHostPath(trimmed)) {
             return trimmed;
           }
           const root = workspaceRoot.replaceAll("\\", "/").replace(/\/+$/, "");
