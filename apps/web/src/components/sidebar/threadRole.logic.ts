@@ -8,20 +8,6 @@ import type {
 
 export type ThreadRole = "main" | "impl" | "rev" | "tri";
 
-export const THREAD_ROLE_LABELS: Record<ThreadRole, string> = {
-  main: "MAIN",
-  impl: "IMPL",
-  rev: "REV",
-  tri: "TRI",
-};
-
-export const THREAD_ROLE_DESCRIPTIONS: Record<ThreadRole, string> = {
-  main: "Main: hands work to other threads",
-  impl: "Implementation: started by another thread or agent",
-  rev: "Review",
-  tri: "Triage",
-};
-
 export interface ThreadRoleInput {
   readonly environmentId: EnvironmentId;
   readonly id: ThreadId;

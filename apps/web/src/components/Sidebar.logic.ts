@@ -1008,32 +1008,6 @@ export function resolveWindowTitleThreadStatus(
 }
 
 /**
- * The dot on a closed boring-sidebar folder: the most urgent state among its
- * hidden threads. Waiting threads stay quiet, like their rows.
- */
-export function resolveSidebarFolderDot(
-  threads: ReadonlyArray<ThreadStatusInput & SidebarThreadStatusInput>,
-): "attention" | "failed" | "unread" | "working" | null {
-  const statuses = new Set(threads.map(resolveSidebarRowStatus));
-  if (
-    statuses.has("input") ||
-    statuses.has("approval") ||
-    statuses.has("request") ||
-    statuses.has("limited")
-  ) {
-    return "attention";
-  }
-  if (statuses.has("failed")) return "failed";
-  // Rows show Done only for ready threads, so the dot follows the same rule.
-  const hasUnread = threads.some(
-    (thread) => resolveSidebarRowStatus(thread) === "ready" && hasUnseenCompletion(thread),
-  );
-  if (hasUnread) return "unread";
-  if (statuses.has("working") || statuses.has("preparing")) return "working";
-  return null;
-}
-
-/**
  * Keys the old per-project sidebar saved folder open state under, most
  * specific first, for `resolveProjectExpanded`. Boring folders read and write
  * the same keys, so a legacy user's closed folders stay closed after regrouping.
@@ -1050,37 +1024,6 @@ export function sidebarFolderExpansionKeys(group: {
     ...group.memberProjects.map((member) => member.physicalProjectKey),
     ...group.memberProjects.map((member) => legacyProjectCwdPreferenceKey(member.workspaceRoot)),
   ];
-}
-
-/**
- * Boring sidebar folders. Folders follow `groups` order and threads keep their
- * input order. A project with no threads gets a folder only when `keepEmpty` says so.
- * A thread whose project is in no group has no folder and is left out.
- */
-export function groupSidebarThreadsByProject<
-  TGroup extends {
-    readonly memberProjectRefs: ReadonlyArray<{
-      readonly environmentId: EnvironmentId;
-      readonly projectId: string;
-    }>;
-  },
-  TThread extends Pick<SidebarThreadSummary, "environmentId" | "projectId">,
->(
-  groups: readonly TGroup[],
-  threads: readonly TThread[],
-  keepEmpty: (group: TGroup) => boolean,
-): Array<{ group: TGroup; threads: TThread[] }> {
-  const folders = groups.map((group) => ({ group, threads: [] as TThread[] }));
-  const folderByProject = new Map<string, (typeof folders)[number]>();
-  for (const folder of folders) {
-    for (const ref of folder.group.memberProjectRefs) {
-      folderByProject.set(`${ref.environmentId}:${ref.projectId}`, folder);
-    }
-  }
-  for (const thread of threads) {
-    folderByProject.get(`${thread.environmentId}:${thread.projectId}`)?.threads.push(thread);
-  }
-  return folders.filter((folder) => folder.threads.length > 0 || keepEmpty(folder.group));
 }
 
 export type SidebarV2TopStatusKind =

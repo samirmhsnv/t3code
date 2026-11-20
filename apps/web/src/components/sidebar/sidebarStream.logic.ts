@@ -55,22 +55,6 @@ export function buildSidebarStream<T>(input: {
   };
 }
 
-/** Orders folders by their latest thread activity; pinned folders lead and archived ones trail. */
-export function orderSidebarProjectFolders<F>(
-  folders: readonly F[],
-  input: {
-    readonly lastActivityMsOf: (folder: F) => number;
-    readonly isPinned: (folder: F) => boolean;
-    readonly isArchived: (folder: F) => boolean;
-  },
-): F[] {
-  const rank = (folder: F) => (input.isPinned(folder) ? 0 : input.isArchived(folder) ? 2 : 1);
-  return folders.toSorted(
-    (left, right) =>
-      rank(left) - rank(right) || input.lastActivityMsOf(right) - input.lastActivityMsOf(left),
-  );
-}
-
 interface StreamActivityInput extends StreamLaneInput {
   readonly pendingSubagentRequest?: "approval" | "user_input" | null;
   readonly pendingGuestMessageCount?: number;

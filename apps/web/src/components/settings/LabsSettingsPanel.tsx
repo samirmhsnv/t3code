@@ -6,7 +6,6 @@ import { T, useGT, useMessages } from "gt-react";
 import { hasCloudPublicConfig } from "~/cloud/publicConfig";
 import { useT3ConnectAuthPrompt } from "../clerk/useT3ConnectAuthPrompt";
 import { Button } from "../ui/button";
-import { Switch } from "../ui/switch";
 import { ScopedSwitch } from "./ScopedSwitch";
 import { SettingsPageContainer, SettingsRow, SettingsSection } from "./settingsLayout";
 import { useSearchableSetting } from "./settingsSearch";
@@ -20,7 +19,6 @@ export function LabsSettingsPanel() {
   return (
     <SettingsPageContainer>
       <SettingsSection id="beta" title={gt("Beta")}>
-        <BoringSidebarMultilineRow />
         {/* Clerk is only mounted when this build has T3 Connect. */}
         {hasCloudPublicConfig() ? <GuestLinksRowWithSignIn /> : <GuestLinksRow />}
         <LinkedEnvironmentsRow />
@@ -29,30 +27,6 @@ export function LabsSettingsPanel() {
         <FastWorktreeCheckoutRow />
       </SettingsSection>
     </SettingsPageContainer>
-  );
-}
-
-function BoringSidebarMultilineRow() {
-  const searchableSetting = useSearchableSetting();
-  const settings = useScopedSettings();
-  const updateSettings = useUpdateScopedSettings();
-  const gt = useGT();
-  return (
-    <SettingsRow
-      {...searchableSetting("boring-sidebar-multiline")}
-      description={gt(
-        "Show folder threads on two lines: the title, then the branch, pull request, and agent.",
-      )}
-      control={
-        <Switch
-          checked={settings.boringSidebarMultilineRows}
-          onCheckedChange={(checked) =>
-            updateSettings({ boringSidebarMultilineRows: Boolean(checked) })
-          }
-          aria-label={gt("Two-line folder rows")}
-        />
-      }
-    />
   );
 }
 

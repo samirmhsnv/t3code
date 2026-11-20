@@ -2,14 +2,9 @@ import { describe, expect, it } from "vite-plus/test";
 
 import {
   buildSidebarStream,
-  orderSidebarProjectFolders,
   sidebarStreamActivity,
   sidebarStreamLane,
 } from "./sidebarStream.logic";
-
-const HOUR = 60 * 60 * 1000;
-const DAY = 24 * HOUR;
-const NOW = Date.parse("2026-11-17T12:00:00.000Z");
 
 const idle = {
   hasPendingApprovals: false,
@@ -58,35 +53,6 @@ describe("buildSidebarStream", () => {
     expect(stream.needsYou.map((thread) => thread.id)).toEqual(["approve"]);
     expect(stream.working.map((thread) => thread.id)).toEqual(["run"]);
     expect(stream.done.map((thread) => thread.id)).toEqual(["done-new", "done-old"]);
-  });
-});
-
-describe("orderSidebarProjectFolders", () => {
-  type F = { id: string; at: number; pinned?: boolean; archived?: boolean };
-  it("orders by activity with pinned first and archived last, keeping every folder", () => {
-    const result = orderSidebarProjectFolders(
-      [
-        { id: "archived", at: NOW - HOUR, archived: true },
-        { id: "old", at: NOW - 3 * DAY },
-        { id: "pinned-stale", at: NOW - 30 * DAY, pinned: true },
-        { id: "fresh", at: NOW - HOUR },
-        { id: "stale", at: NOW - 8 * DAY },
-        { id: "empty", at: 0 },
-      ] satisfies F[],
-      {
-        lastActivityMsOf: (folder) => folder.at,
-        isPinned: (folder) => folder.pinned === true,
-        isArchived: (folder) => folder.archived === true,
-      },
-    );
-    expect(result.map((folder) => folder.id)).toEqual([
-      "pinned-stale",
-      "fresh",
-      "old",
-      "stale",
-      "empty",
-      "archived",
-    ]);
   });
 });
 

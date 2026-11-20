@@ -22,7 +22,7 @@ function pipelineSummary(pipeline: Pipeline): string {
 }
 
 /** Four static bars for Implement, Review, CI and Merge. */
-export function PipelineSegments({
+function PipelineSegments({
   pipeline,
   size = "default",
   className,
