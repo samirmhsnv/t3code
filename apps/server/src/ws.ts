@@ -3078,6 +3078,9 @@ export const layerWsRpc = (
         [WS_METHODS.agentSessionsScan]: () => agentSessionScanner.scan,
         [WS_METHODS.mcpServersList]: () => mcpServerCatalog.list,
         [WS_METHODS.mcpServersHealth]: () => mcpServerCatalog.health,
+        [WS_METHODS.mcpServersAdd]: (input) => mcpServerCatalog.add(input),
+        [WS_METHODS.mcpServersRemove]: (input) => mcpServerCatalog.remove(input),
+        [WS_METHODS.mcpServersSignOut]: (input) => mcpServerCatalog.signOut(input),
         [WS_METHODS.agentSessionsImport]: (input) =>
           agentSessionImporter.importRecentAgentThreads(input),
         [WS_METHODS.assetsCreateUrl]:

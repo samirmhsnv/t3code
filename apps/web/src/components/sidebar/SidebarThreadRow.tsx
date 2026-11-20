@@ -1378,16 +1378,6 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
               />
             }
           >
-            {topStatus ? (
-              <TopStatusIcon
-                icon={topStatus.icon}
-                className={cn("size-3.5", topStatus.className)}
-              />
-            ) : (
-              <span className="inline-flex size-3.5 shrink-0 items-center justify-center">
-                <FolderStatusGlyph status={status} isUnread={isUnread} />
-              </span>
-            )}
             {projectName ? (
               <span className="max-w-[35%] shrink-0 truncate text-xs text-secondary-label">
                 {projectName}
@@ -1506,6 +1496,16 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
               </span>
             )}
             {props.sweepAction !== null ? dragDestination : null}
+            {topStatus ? (
+              <TopStatusIcon
+                icon={topStatus.icon}
+                className={cn("size-3.5", topStatus.className)}
+              />
+            ) : (
+              <span className="inline-flex size-3.5 shrink-0 items-center justify-center">
+                <FolderStatusGlyph status={status} isUnread={isUnread} />
+              </span>
+            )}
             {isRegeneratingTitle ? (
               <span role="status" className="sr-only">
                 Regenerating title

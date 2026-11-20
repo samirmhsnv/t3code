@@ -76,3 +76,60 @@ export const McpServersHealthResult = Schema.Struct({
   checkedAt: IsoDateTime,
 });
 export type McpServersHealthResult = typeof McpServersHealthResult.Type;
+
+const McpServerName = TrimmedNonEmptyString.check(Schema.isPattern(/^[A-Za-z0-9_.-]+$/));
+
+export const McpServerVariable = Schema.Struct({
+  name: TrimmedNonEmptyString,
+  value: Schema.String,
+});
+export type McpServerVariable = typeof McpServerVariable.Type;
+
+export const McpServerAddInput = Schema.Struct({
+  provider: McpServerProvider,
+  providerInstanceId: ProviderInstanceId,
+  name: McpServerName,
+  // Codex has one global config, so it takes "user" only.
+  scope: McpServerScope,
+  // Required for "local" and "project": their config belongs to the project's root.
+  projectId: Schema.optional(ProjectId),
+  transport: McpServerTransport,
+  // The executable for stdio, the URL otherwise.
+  target: TrimmedNonEmptyString,
+  args: Schema.Array(Schema.String),
+  env: Schema.Array(McpServerVariable),
+  headers: Schema.Array(McpServerVariable),
+});
+export type McpServerAddInput = typeof McpServerAddInput.Type;
+
+export const McpServerRemoveInput = Schema.Struct({
+  provider: McpServerProvider,
+  providerInstanceId: ProviderInstanceId,
+  name: TrimmedNonEmptyString,
+  scope: McpServerScope,
+  projectId: Schema.optional(ProjectId),
+});
+export type McpServerRemoveInput = typeof McpServerRemoveInput.Type;
+
+export const McpServerSignOutInput = Schema.Struct({
+  provider: McpServerProvider,
+  providerInstanceId: ProviderInstanceId,
+  name: TrimmedNonEmptyString,
+});
+export type McpServerSignOutInput = typeof McpServerSignOutInput.Type;
+
+export const McpServerChangeResult = Schema.Struct({});
+export type McpServerChangeResult = typeof McpServerChangeResult.Type;
+
+export class McpServerChangeError extends Schema.TaggedError<McpServerChangeError>()(
+  "McpServerChangeError",
+  {
+    operation: Schema.Literals(["add", "remove", "sign-out"]),
+    // The CLI's own explanation, such as a name that is already taken.
+    detail: Schema.String,
+  },
+) {
+  override get message(): string {
+    return this.detail;
+  }
+}

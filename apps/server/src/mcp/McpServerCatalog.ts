@@ -1,8 +1,13 @@
 import {
   ClaudeSettings,
   CodexSettings,
+  McpServerChangeError,
   McpServersListError,
   ProviderDriverKind,
+  type McpServerAddInput,
+  type McpServerChangeResult,
+  type McpServerRemoveInput,
+  type McpServerSignOutInput,
   ProviderInstanceId,
   resolveProviderInstanceEnabled,
   type McpServerEntry,
@@ -45,6 +50,16 @@ export class McpServerCatalog extends Context.Service<
     readonly list: Effect.Effect<McpServersListResult, McpServersListError>;
     /** Asks each Claude account's CLI, which also reports claude.ai and plugin servers, with live status. */
     readonly health: Effect.Effect<McpServersHealthResult, McpServersListError>;
+    /** Changes go through each provider's own `mcp` command, so its config format stays its own. */
+    readonly add: (
+      input: McpServerAddInput,
+    ) => Effect.Effect<McpServerChangeResult, McpServerChangeError>;
+    readonly remove: (
+      input: McpServerRemoveInput,
+    ) => Effect.Effect<McpServerChangeResult, McpServerChangeError>;
+    readonly signOut: (
+      input: McpServerSignOutInput,
+    ) => Effect.Effect<McpServerChangeResult, McpServerChangeError>;
   }
 >()("t3/mcp/McpServerCatalog") {}
 
@@ -212,6 +227,28 @@ export function parseClaudeMcpList(
   });
 }
 
+/** The provider CLI's arguments for adding a server, as `claude mcp add` and `codex mcp add` take them. */
+export function mcpAddArgs(input: McpServerAddInput): ReadonlyArray<string> {
+  const env = input.env.flatMap((variable) => [
+    input.provider === "codex" ? "--env" : "-e",
+    `${variable.name}=${variable.value}`,
+  ]);
+  if (input.provider === "codex") {
+    return input.transport === "stdio"
+      ? ["mcp", "add", input.name, ...env, "--", input.target, ...input.args]
+      : ["mcp", "add", input.name, "--url", input.target];
+  }
+  const base = ["mcp", "add", "--scope", input.scope, "--transport", input.transport, input.name];
+  // `-e` and `-H` take several values, so they follow the positionals and `--` ends them.
+  return input.transport === "stdio"
+    ? [...base, input.target, ...env, "--", ...input.args]
+    : [
+        ...base,
+        input.target,
+        ...input.headers.flatMap((header) => ["-H", `${header.name}: ${header.value}`]),
+      ];
+}
+
 const decodeJson = Schema.decodeEffect(Schema.fromJsonString(Schema.Unknown));
 const decodeClaudeSettings = Schema.decodeUnknownOption(ClaudeSettings);
 const decodeCodexSettings = Schema.decodeUnknownOption(CodexSettings);
@@ -255,6 +292,53 @@ const make = Effect.gen(function* () {
     const configured = config.environment?.findLast((variable) => variable.name === name)?.value;
     return typeof configured === "string" ? configured : hostEnvironment[name];
   };
+
+  const claudeCommand = Effect.fn("McpServerCatalog.claudeCommand")(function* (
+    config: ProviderInstanceConfig,
+  ) {
+    const decoded = decodeClaudeSettings(config.config ?? {});
+    if (Option.isNone(decoded)) return Option.none();
+    const baseEnv = yield* mergeClaudeProcessEnvironment(
+      decoded.value,
+      config.environment,
+      hostEnvironment,
+    ).pipe(
+      Effect.provideService(HostProcess.HomeDirectory, homeDir),
+      Effect.provideService(FileSystem.FileSystem, fileSystem),
+      Effect.provideService(Path.Path, path),
+    );
+    const env = yield* makeClaudeEnvironment(decoded.value, baseEnv).pipe(
+      Effect.provideService(Path.Path, path),
+      Effect.provideService(HostProcess.HomeDirectory, homeDir),
+    );
+    return Option.some({ command: expandHomePath(decoded.value.binaryPath, homeDir), env });
+  });
+
+  const codexCommand = Effect.fn("McpServerCatalog.codexCommand")(function* (
+    config: ProviderInstanceConfig,
+  ) {
+    const decoded = decodeCodexSettings(config.config ?? {});
+    if (Option.isNone(decoded)) return Option.none();
+    const layout = yield* resolveCodexLayout(decoded.value, config);
+    return Option.some({
+      command: expandHomePath(decoded.value.binaryPath, homeDir),
+      env: { ...hostEnvironment, CODEX_HOME: layout.sharedHomePath },
+    });
+  });
+
+  function resolveCodexLayout(codexConfig: CodexSettings, config: ProviderInstanceConfig) {
+    const codexHome = instanceVariable(config, "CODEX_HOME")?.trim();
+    const codexSettings =
+      codexConfig.homePath.trim().length === 0 &&
+      codexConfig.shadowHomePath.trim().length === 0 &&
+      codexHome
+        ? { ...codexConfig, homePath: codexHome }
+        : codexConfig;
+    return resolveCodexHomeLayout(codexSettings).pipe(
+      Effect.provideService(Path.Path, path),
+      Effect.provideService(HostProcess.HomeDirectory, homeDir),
+    );
+  }
 
   const list = Effect.gen(function* () {
     const settings = yield* serverSettings.getSettings.pipe(
@@ -337,17 +421,7 @@ const make = Effect.gen(function* () {
     for (const { instanceId, config } of enabledInstances(settings, "codex")) {
       const decoded = decodeCodexSettings(config.config ?? {});
       if (Option.isNone(decoded)) continue;
-      const codexHome = instanceVariable(config, "CODEX_HOME")?.trim();
-      const codexSettings =
-        decoded.value.homePath.trim().length === 0 &&
-        decoded.value.shadowHomePath.trim().length === 0 &&
-        codexHome
-          ? { ...decoded.value, homePath: codexHome }
-          : decoded.value;
-      const layout = yield* resolveCodexHomeLayout(codexSettings).pipe(
-        Effect.provideService(Path.Path, path),
-        Effect.provideService(HostProcess.HomeDirectory, homeDir),
-      );
+      const layout = yield* resolveCodexLayout(decoded.value, config);
       if (seenCodexHomes.has(layout.sharedHomePath)) continue;
       seenCodexHomes.add(layout.sharedHomePath);
       const toml = yield* readText(path.join(layout.sharedHomePath, "config.toml"));
@@ -372,27 +446,15 @@ const make = Effect.gen(function* () {
     const servers: McpServerHealthEntry[] = [];
     const seenConfigDirs = new Set<string>();
     for (const { instanceId, config } of enabledInstances(settings, "claudeAgent")) {
-      const decoded = decodeClaudeSettings(config.config ?? {});
-      if (Option.isNone(decoded)) continue;
-      const baseEnv = yield* mergeClaudeProcessEnvironment(
-        decoded.value,
-        config.environment,
-        hostEnvironment,
-      ).pipe(
-        Effect.provideService(HostProcess.HomeDirectory, homeDir),
-        Effect.provideService(FileSystem.FileSystem, fileSystem),
-        Effect.provideService(Path.Path, path),
-      );
-      const env = yield* makeClaudeEnvironment(decoded.value, baseEnv).pipe(
-        Effect.provideService(Path.Path, path),
-        Effect.provideService(HostProcess.HomeDirectory, homeDir),
-      );
+      const cli = yield* claudeCommand(config);
+      if (Option.isNone(cli)) continue;
+      const { command, env } = cli.value;
       const configKey = env.CLAUDE_CONFIG_DIR ?? "";
       if (seenConfigDirs.has(configKey)) continue;
       seenConfigDirs.add(configKey);
       const output = yield* processRunner
         .run({
-          command: expandHomePath(decoded.value.binaryPath, homeDir),
+          command,
           args: ["mcp", "list"],
           // Like the driver: some `claude` wrappers refuse to run from $HOME.
           cwd: stateDir,
@@ -415,7 +477,93 @@ const make = Effect.gen(function* () {
     } satisfies McpServersHealthResult;
   }).pipe(Effect.withSpan("McpServerCatalog.health"));
 
-  return McpServerCatalog.of({ list, health });
+  type ChangeOperation = McpServerChangeError["operation"];
+  const changeError = (operation: ChangeOperation, detail: string) =>
+    new McpServerChangeError({ operation, detail });
+
+  const runChange = Effect.fn("McpServerCatalog.runChange")(function* (
+    operation: ChangeOperation,
+    target: {
+      readonly provider: McpServerProvider;
+      readonly providerInstanceId: ProviderInstanceId;
+      readonly scope?: McpServerEntry["scope"];
+      readonly projectId?: ProjectId | undefined;
+    },
+    args: ReadonlyArray<string>,
+  ) {
+    const settings = yield* serverSettings.getSettings.pipe(
+      Effect.mapError(() => changeError(operation, "Couldn't read this environment's settings.")),
+    );
+    const instance = enabledInstances(settings, target.provider).find(
+      (candidate) => candidate.instanceId === target.providerInstanceId,
+    );
+    if (instance === undefined) {
+      return yield* changeError(operation, "That agent isn't enabled on this environment.");
+    }
+    if (target.provider === "codex" && target.scope !== undefined && target.scope !== "user") {
+      return yield* changeError(operation, "Codex keeps MCP servers in one global config.");
+    }
+    // Claude files "local" and "project" servers under the directory it runs in.
+    let cwd = stateDir;
+    if (target.scope === "local" || target.scope === "project") {
+      const projects = yield* projectStore
+        .list()
+        .pipe(
+          Effect.mapError(() =>
+            changeError(operation, "Couldn't read this environment's projects."),
+          ),
+        );
+      const project = projects.find((candidate) => candidate.projectId === target.projectId);
+      if (project === undefined) {
+        return yield* changeError(operation, "Choose a project for a project-level server.");
+      }
+      cwd = path.resolve(expandHomePath(project.workspaceRoot, homeDir));
+    }
+    const cli =
+      target.provider === "claudeAgent"
+        ? yield* claudeCommand(instance.config)
+        : yield* codexCommand(instance.config);
+    if (Option.isNone(cli)) {
+      return yield* changeError(operation, "That agent's settings couldn't be read.");
+    }
+    const output = yield* processRunner
+      .run({
+        command: cli.value.command,
+        args: [...args],
+        cwd,
+        env: cli.value.env,
+        timeout: "60 seconds",
+        timeoutBehavior: "timedOutResult",
+        maxOutputBytes: 64 * 1024,
+        outputMode: "truncate",
+      })
+      .pipe(Effect.mapError((cause) => changeError(operation, cause.message)));
+    if (output.timedOut) {
+      return yield* changeError(operation, "The agent's CLI didn't answer within a minute.");
+    }
+    if (output.code !== 0) {
+      const detail = (output.stderr.trim() || output.stdout.trim()).replace(/^Error:\s*/, "");
+      return yield* changeError(operation, detail || "The agent's CLI refused the change.");
+    }
+    return {} satisfies McpServerChangeResult;
+  });
+
+  const add = (input: McpServerAddInput) =>
+    input.provider === "codex" && (input.transport === "sse" || input.headers.length > 0)
+      ? Effect.fail(changeError("add", "Codex takes stdio and HTTP servers without headers."))
+      : runChange("add", input, mcpAddArgs(input));
+  const remove = (input: McpServerRemoveInput) =>
+    runChange(
+      "remove",
+      input,
+      input.provider === "codex"
+        ? ["mcp", "remove", input.name]
+        : ["mcp", "remove", "--scope", input.scope, input.name],
+    );
+  const signOut = (input: McpServerSignOutInput) =>
+    runChange("sign-out", input, ["mcp", "logout", input.name]);
+
+  return McpServerCatalog.of({ list, health, add, remove, signOut });
 });
 
 export const layer = Layer.effect(McpServerCatalog, make).pipe(Layer.provide(ProcessRunner.layer));

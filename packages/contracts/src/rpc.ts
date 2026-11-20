@@ -110,6 +110,11 @@ import {
   AgentSessionScanError,
 } from "./agentSessions.ts";
 import {
+  McpServerAddInput,
+  McpServerChangeError,
+  McpServerChangeResult,
+  McpServerRemoveInput,
+  McpServerSignOutInput,
   McpServersHealthResult,
   McpServersListError,
   McpServersListInput,
@@ -474,6 +479,9 @@ export const WS_METHODS = {
   agentSessionsImport: "agentSessions.import",
   mcpServersList: "mcpServers.list",
   mcpServersHealth: "mcpServers.health",
+  mcpServersAdd: "mcpServers.add",
+  mcpServersRemove: "mcpServers.remove",
+  mcpServersSignOut: "mcpServers.signOut",
   assetsCreateUrl: "assets.createUrl",
   assetsPersistChatAttachments: "assets.persistChatAttachments",
   attachmentsCreateUploadUrl: "attachments.createUploadUrl",
@@ -1648,6 +1656,24 @@ const WsMcpServersHealthRpc = Rpc.make(WS_METHODS.mcpServersHealth, {
   error: Schema.Union([McpServersListError, EnvironmentAuthorizationError]),
 });
 
+const WsMcpServersAddRpc = Rpc.make(WS_METHODS.mcpServersAdd, {
+  payload: McpServerAddInput,
+  success: McpServerChangeResult,
+  error: Schema.Union([McpServerChangeError, EnvironmentAuthorizationError]),
+});
+
+const WsMcpServersRemoveRpc = Rpc.make(WS_METHODS.mcpServersRemove, {
+  payload: McpServerRemoveInput,
+  success: McpServerChangeResult,
+  error: Schema.Union([McpServerChangeError, EnvironmentAuthorizationError]),
+});
+
+const WsMcpServersSignOutRpc = Rpc.make(WS_METHODS.mcpServersSignOut, {
+  payload: McpServerSignOutInput,
+  success: McpServerChangeResult,
+  error: Schema.Union([McpServerChangeError, EnvironmentAuthorizationError]),
+});
+
 const WsAgentSessionsImportRpc = Rpc.make(WS_METHODS.agentSessionsImport, {
   payload: AgentSessionImportInput,
   success: AgentSessionImportResult,
@@ -2459,6 +2485,9 @@ export const WsRpcGroup = RpcGroup.make(
   WsAgentSessionsImportRpc,
   WsMcpServersListRpc,
   WsMcpServersHealthRpc,
+  WsMcpServersAddRpc,
+  WsMcpServersRemoveRpc,
+  WsMcpServersSignOutRpc,
   WsAssetsCreateUrlRpc,
   WsAssetsPersistChatAttachmentsRpc,
   WsAttachmentsCreateUploadUrlRpc,

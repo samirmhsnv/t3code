@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vite-plus/test";
 
+import { ProviderInstanceId } from "@t3tools/contracts";
+
 import {
+  mcpAddArgs,
   parseClaudeMcpList,
   parseClaudeMcpServers,
   parseCodexMcpServers,
@@ -107,5 +110,73 @@ describe("parseClaudeMcpList", () => {
       { name: "docs", source: "config", transport: "stdio", target: "docs-mcp", status: "failed" },
       { name: "repo", source: "config", transport: "stdio", target: "node", status: "pending" },
     ]);
+  });
+});
+
+describe("mcpAddArgs", () => {
+  const base = {
+    providerInstanceId: ProviderInstanceId.make("claudeAgent"),
+    name: "docs",
+    scope: "user",
+    args: ["-y", "@x/server"],
+    env: [{ name: "A", value: "1" }],
+    headers: [{ name: "X-Key", value: "abc" }],
+  } as const;
+
+  it("ends Claude's many-valued flags before the server's own args", () => {
+    expect(
+      mcpAddArgs({ ...base, provider: "claudeAgent", transport: "stdio", target: "npx" }),
+    ).toEqual([
+      "mcp",
+      "add",
+      "--scope",
+      "user",
+      "--transport",
+      "stdio",
+      "docs",
+      "npx",
+      "-e",
+      "A=1",
+      "--",
+      "-y",
+      "@x/server",
+    ]);
+    expect(
+      mcpAddArgs({
+        ...base,
+        provider: "claudeAgent",
+        scope: "local",
+        transport: "http",
+        target: "https://mcp.example.com/mcp",
+      }),
+    ).toEqual([
+      "mcp",
+      "add",
+      "--scope",
+      "local",
+      "--transport",
+      "http",
+      "docs",
+      "https://mcp.example.com/mcp",
+      "-H",
+      "X-Key: abc",
+    ]);
+  });
+
+  it("uses Codex's flags, which have no scope or headers", () => {
+    expect(mcpAddArgs({ ...base, provider: "codex", transport: "stdio", target: "npx" })).toEqual([
+      "mcp",
+      "add",
+      "docs",
+      "--env",
+      "A=1",
+      "--",
+      "npx",
+      "-y",
+      "@x/server",
+    ]);
+    expect(
+      mcpAddArgs({ ...base, provider: "codex", transport: "http", target: "https://e.com/mcp" }),
+    ).toEqual(["mcp", "add", "docs", "--url", "https://e.com/mcp"]);
   });
 });

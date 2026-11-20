@@ -18,6 +18,10 @@ import { WS_METHODS } from "./rpc.ts";
 /** Incremental client enforcement; the server still authorizes every request. */
 export const CLIENT_GUARDED_RPC_SCOPES = {
   [WS_METHODS.providerAuthRemoveMethod]: AuthProvidersManageScope,
+  // An MCP server runs a command or reaches a URL for every agent here, as provider config does.
+  [WS_METHODS.mcpServersAdd]: AuthProvidersManageScope,
+  [WS_METHODS.mcpServersRemove]: AuthProvidersManageScope,
+  [WS_METHODS.mcpServersSignOut]: AuthProvidersManageScope,
   [WS_METHODS.previewClose]: AuthPreviewOperateScope,
   // Stopping a server signals its processes, as closing a terminal does.
   [WS_METHODS.previewStopLocalServer]: AuthTerminalOperateScope,
