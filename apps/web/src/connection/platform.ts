@@ -124,9 +124,34 @@ const networkPathChanges = Stream.callback<"network-changed">((queue) =>
   ).pipe(Effect.asVoid),
 );
 
+const CLOCK_JUMP_CHECK_MS = 2_000;
+// Matches mobile's long-background threshold.
+const CLOCK_JUMP_THRESHOLD_MS = 10_000;
+
+// Timers stop while the machine sleeps and a visible window gets no event on wake, so a
+// wall-clock gap between ticks marks a long absence, like mobile's long background. A long
+// hidden spell (throttled timers) counts too, which is the same signal mobile sends.
+const clockJumpWakeups = Stream.callback<"application-active-long">((queue) =>
+  Effect.acquireRelease(
+    Effect.sync(() => {
+      let last: number | undefined;
+      return window.setInterval(() => {
+        const now = Date.now();
+        const gap = last === undefined ? 0 : now - last;
+        last = now;
+        if (document.visibilityState === "visible" && gap > CLOCK_JUMP_THRESHOLD_MS) {
+          Queue.offerUnsafe(queue, "application-active-long");
+        }
+      }, CLOCK_JUMP_CHECK_MS);
+    }),
+    (interval) => Effect.sync(() => window.clearInterval(interval)),
+  ).pipe(Effect.asVoid),
+);
+
 const layerWakeups = Wakeups.layer({
   changes: Stream.mergeAll(
     [
+      clockJumpWakeups,
       Stream.callback<"application-active">((queue) =>
         Effect.acquireRelease(
           Effect.sync(() => {
