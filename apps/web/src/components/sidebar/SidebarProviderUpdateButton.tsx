@@ -1,4 +1,4 @@
-import { PROVIDER_DISPLAY_NAMES } from "@t3tools/contracts";
+import { PROVIDER_DISPLAY_NAMES, ProviderDriverKind } from "@t3tools/contracts";
 import { DownloadIcon, RefreshCwIcon } from "lucide-react";
 import { useGT } from "gt-react";
 import { useState } from "react";
@@ -8,10 +8,12 @@ import { Button } from "../ui/button";
 import { Spinner } from "../ui/spinner";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 
-/** Updates agent CLIs such as Claude Code; it never updates T3 Code or its servers. */
+const UPDATABLE_DRIVERS = [ProviderDriverKind.make("claudeAgent")];
+
+/** Updates Claude Code only; never T3 Code, its servers, or other agent CLIs. */
 export function SidebarProviderUpdateButton() {
   const gt = useGT();
-  const providerUpdates = useProviderUpdates();
+  const providerUpdates = useProviderUpdates({ drivers: UPDATABLE_DRIVERS });
   const checkProviderUpdates = useCheckProviderUpdates();
   const [pending, setPending] = useState<"check" | "update" | null>(null);
   const names = [

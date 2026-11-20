@@ -1,6 +1,10 @@
 import { m } from "../i18n/messages";
 import { thrownErrorMessage } from "@t3tools/client-runtime/errors";
-import { AuthProvidersManageScope, PROVIDER_DISPLAY_NAMES } from "@t3tools/contracts";
+import {
+  AuthProvidersManageScope,
+  PROVIDER_DISPLAY_NAMES,
+  type ProviderDriverKind,
+} from "@t3tools/contracts";
 import {
   isAtomCommandInterrupted,
   settlePromise,
@@ -71,7 +75,9 @@ export function useCheckProviderUpdates() {
   };
 }
 
-export function useProviderUpdates() {
+export function useProviderUpdates({
+  drivers,
+}: { readonly drivers?: ReadonlyArray<ProviderDriverKind> } = {}) {
   const { environments } = useEnvironments();
   const manageableIds = useEnvironmentsWithScope(environments, AuthProvidersManageScope);
   const providersByEnvironment = useEnvironmentProviders();
@@ -86,8 +92,10 @@ export function useProviderUpdates() {
     ) {
       return [];
     }
-    const candidates = collectProviderUpdateCandidates(providers).filter((candidate) =>
-      canOneClickUpdateProviderCandidate(candidate, providers),
+    const candidates = collectProviderUpdateCandidates(providers).filter(
+      (candidate) =>
+        (drivers === undefined || drivers.includes(candidate.driver)) &&
+        canOneClickUpdateProviderCandidate(candidate, providers),
     );
     return candidates.length > 0
       ? [{ environmentId: environment.environmentId, label: environment.label, candidates }]
