@@ -28,6 +28,7 @@ export type SettingsPath =
   | "/settings/keybindings"
   | "/settings/snap-shot"
   | "/settings/providers"
+  | "/settings/connectors"
   | "/settings/threads"
   | "/settings/browser"
   | "/settings/devices"
@@ -103,6 +104,7 @@ export const SETTINGS_SECTION_LABELS: Readonly<Record<SettingsPath, string>> = {
   "/settings/keybindings": msg("Keybindings"),
   "/settings/snap-shot": msg("SnapShots"),
   "/settings/providers": msg("Providers"),
+  "/settings/connectors": msg("Connectors"),
   "/settings/threads": msg("Threads"),
   "/settings/browser": msg("Browser"),
   "/settings/devices": msg("Devices"),
@@ -151,6 +153,7 @@ export const SETTINGS_NAV_GROUPS: ReadonlyArray<{
     heading: msg("Agents"),
     paths: [
       "/settings/providers",
+      "/settings/connectors",
       "/settings/threads",
       "/settings/browser",
       "/settings/devices",
@@ -498,6 +501,13 @@ export const SETTINGS_SEARCH_ITEMS = [
     title: msg("Boring sidebar (group by project)"),
     to: "/settings/labs",
     searchTerms: [msg("beta folders project tree classic sidebar")],
+  },
+  {
+    id: "connectors",
+    title: msg("Connectors"),
+    to: "/settings/connectors",
+    targetId: "connectors",
+    searchTerms: [msg("mcp servers tools claude codex connectors integrations")],
   },
   {
     id: "tool-call-visibility",
@@ -1478,6 +1488,7 @@ const SETTINGS_CATEGORY_SCOPES: Readonly<Record<SettingsPath, SettingsSearchScop
   "/settings/snap-shot": null,
   "/settings/keybindings": null,
   "/settings/providers": null,
+  "/settings/connectors": "environment",
   "/settings/threads": null,
   "/settings/browser": null,
   "/settings/devices": null,
