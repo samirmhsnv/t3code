@@ -136,14 +136,25 @@ function ConnectorsList() {
     query.data !== null && servers.length === 0 && healthQuery.data !== null && health.length === 0;
   return (
     <SettingsPageContainer>
-      <SettingsSection title={gt("Connectors")} id="connectors" headerAction={refresh}>
+      <SettingsSection
+        title={gt("Connectors")}
+        id="connectors"
+        headerAction={refresh}
+        variant="plain"
+        className="space-y-4"
+      >
         <p className="text-sm text-muted-foreground">
           {gt(
             "MCP servers the agents on this environment load, read from each agent's own config. Change them with the agent's CLI, such as claude mcp add or codex mcp add.",
           )}
         </p>
         {query.error ? (
-          <p className="text-sm text-destructive-foreground">{query.error}</p>
+          <p className="text-sm text-destructive-foreground">
+            {gt(
+              "Couldn't load connectors: {error} An environment on an older T3 Code needs an update first.",
+              { error: query.error },
+            )}
+          </p>
         ) : query.data === null ? (
           <p className="text-sm text-muted-foreground">{gt("Loading")}</p>
         ) : empty ? (
@@ -157,7 +168,7 @@ function ConnectorsList() {
           <p className="text-xs text-muted-foreground">
             {gt("Checking Claude's connectors and server status…")}
           </p>
-        ) : healthQuery.error ? (
+        ) : healthQuery.error && !query.error ? (
           <p className="text-xs text-muted-foreground">
             {gt("Couldn't check server status: {error}", { error: healthQuery.error })}
           </p>

@@ -7986,6 +7986,7 @@
   "43897f5bc2c1e321": "Connectors",
   "9ab2cbc092787ea3": "Wähle eine Umgebung, um die MCP-Server ihrer Agenten zu sehen.",
   "832d324c09fd2470": "MCP-Server, die die Agenten in dieser Umgebung laden, gelesen aus der Konfiguration des jeweiligen Agenten. Ändere sie mit der CLI des Agenten, etwa claude mcp add oder codex mcp add.",
+  "d8d9ed9fb01f2f0c": "Connectors konnten nicht geladen werden: {error} Eine Umgebung mit älterem T3 Code muss zuerst aktualisiert werden.",
   "41e48b63d698e1c9": "In dieser Umgebung sind keine MCP-Server eingerichtet.",
   "5d9cea48ac841200": "Claude-Konto",
   "e0553f199bd3ccbd": "Claudes Connectors und Serverstatus werden geprüft…",
