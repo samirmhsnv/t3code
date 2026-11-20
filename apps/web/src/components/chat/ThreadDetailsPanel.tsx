@@ -6,9 +6,9 @@ import { isScratchProject } from "@t3tools/client-runtime/state/projects";
 import type { ComposerThreadTarget, DraftId } from "../../composerDraftStore";
 import { type EnvMode } from "../BranchToolbar.logic";
 import { BranchToolbar } from "../BranchToolbar";
-import BaseGitActionsControl from "../GitActionsControl";
+import GitActionsControl from "../GitActionsControl";
 import { T, useGT } from "gt-react";
-import { memo, useState, type ComponentProps } from "react";
+import { useState, type ComponentProps } from "react";
 import { ThreadDetailsCard } from "./ThreadDetailsCard";
 import {
   ThreadDetailsActivitySection,
@@ -37,8 +37,6 @@ import {
   THREAD_DETAILS_PANEL_LABEL_CLASS,
 } from "./threadDetailsPanelStyles";
 import { Menu, MenuPopup } from "../ui/menu";
-
-const GitActionsControl = memo(BaseGitActionsControl);
 
 interface ThreadDetailsPanelProps extends Pick<
   ComponentProps<typeof ThreadDetailsCard>,

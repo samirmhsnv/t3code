@@ -10,7 +10,8 @@ import {
 import { DEFAULT_RESOLVED_KEYBINDINGS } from "@t3tools/shared/keybindings";
 import { ChevronDownIcon, PlusIcon } from "lucide-react";
 import { T, useGT } from "gt-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { stackedThreadToast, toastManager } from "../ui/toast";
 import { useT3ProjectFileState } from "../../hooks/useT3ProjectFileScripts";
 import { useEnvironments } from "../../state/environments";
 import {
@@ -87,7 +88,13 @@ export function ProjectActionsSettings() {
           script.name.toLowerCase() === fileScript.name.toLowerCase(),
       ),
   );
+  const requestIdRef = useRef(0);
+  const openRequest = (next: ProjectScriptEditorRequest) => {
+    requestIdRef.current += 1;
+    setRequest(next);
+  };
   const importFileScript = async (fileScript: T3ProjectFileScript) => {
+    const requestId = ++requestIdRef.current;
     const payload: NewProjectScriptInput = {
       name: fileScript.name,
       command: fileScript.command,
@@ -101,17 +108,25 @@ export function ProjectActionsSettings() {
       autoOpenPreview: fileScript.previewUrl ? (fileScript.autoOpenPreview ?? false) : false,
     };
     const result = await submit(null, payload);
-    if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
-      const error = squashAtomCommandFailure(result);
-      setRequest({
-        scriptId: null,
-        initial: payload,
-        error:
-          error instanceof Error
-            ? (thrownErrorMessage(error, m) ?? error.message)
-            : gt("Failed to import action."),
-      });
+    if (result._tag !== "Failure" || isAtomCommandInterrupted(result)) return;
+    const error = squashAtomCommandFailure(result);
+    const message = error instanceof Error ? (thrownErrorMessage(error, m) ?? error.message) : null;
+    // An editor opened while the import ran must keep its draft.
+    if (requestId !== requestIdRef.current) {
+      toastManager.add(
+        stackedThreadToast({
+          type: "error",
+          title: gt("Failed to import {name}.", { name: fileScript.name }),
+          ...(message ? { description: message } : {}),
+        }),
+      );
+      return;
     }
+    setRequest({
+      scriptId: null,
+      initial: payload,
+      error: message ?? gt("Failed to import action."),
+    });
   };
 
   return (
@@ -174,7 +189,7 @@ export function ProjectActionsSettings() {
               size="xs"
               variant="outline"
               disabled={saving || !canWriteSettings || targets.length === 0}
-              onClick={() => setRequest({ scriptId: null, initial: EMPTY_PROJECT_SCRIPT_INPUT })}
+              onClick={() => openRequest({ scriptId: null, initial: EMPTY_PROJECT_SCRIPT_INPUT })}
             >
               <PlusIcon className="size-3.5" />
               <T>Add action</T>
@@ -194,7 +209,7 @@ export function ProjectActionsSettings() {
           scripts={scripts}
           keybindings={keybindings}
           disabled={saving || !canWriteSettings}
-          onEdit={(script) => setRequest(editorRequestForScript(script, keybindings))}
+          onEdit={(script) => openRequest(editorRequestForScript(script, keybindings))}
         />
       )}
       {t3File.status === "invalid" ? (
