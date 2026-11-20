@@ -375,7 +375,7 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
   }
 }
 
-/* Fork chrome (top bar, composer, status bar): neutral white or black glass, never theme-tinted. */
+/* Fork chrome (top bar, composer): neutral white or black glass, never theme-tinted. */
 @utility surface-chrome {
   --chrome-tint: white;
   background: color-mix(in srgb, var(--chrome-tint) var(--chrome-opacity, 55%), transparent);

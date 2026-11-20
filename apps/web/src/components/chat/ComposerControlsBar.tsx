@@ -62,6 +62,8 @@ export function ComposerControlsBar(props: {
   compatibleRuntimeModeOptions: ReadonlyArray<RuntimeModeOption>;
   handleRuntimeModeChange: (mode: RuntimeMode) => void;
   composerControlsCollapsed: boolean;
+  // Under the composer, beside the xs branch strip.
+  composerControlsBelow?: boolean;
   composerControlsHidden: boolean;
   restingHiddenBlockCount: number;
   iconOnlyBlockCount: number;
@@ -145,7 +147,7 @@ export function ComposerControlsBar(props: {
     collapsed: composerControlsCollapsed,
     measuredHiddenBlockCount,
   });
-  const controlSize = composerControlsCollapsed ? "xs" : "sm";
+  const controlSize = composerControlsCollapsed || props.composerControlsBelow ? "xs" : "sm";
   const gt = useGT();
   const m = useMessages();
   const applyThreadModelPick = useApplyThreadModelPick();

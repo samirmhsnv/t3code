@@ -1388,6 +1388,11 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                 <FolderStatusGlyph status={status} isUnread={isUnread} />
               </span>
             )}
+            {projectName ? (
+              <span className="max-w-[35%] shrink-0 truncate text-xs text-secondary-label">
+                {projectName}
+              </span>
+            ) : null}
             {draftIndicator}
             {title}
             {pinIndicator}
@@ -1404,10 +1409,14 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
               >
                 <span
                   className={cn(
-                    "min-w-0 truncate text-xs text-secondary-label group-any-hover/sidebar-row:opacity-0",
+                    "inline-flex min-w-0 items-center gap-1.5 text-xs text-secondary-label group-any-hover/sidebar-row:opacity-0",
                     needsYou && "font-medium text-warning-foreground",
                   )}
                 >
+                  <SidebarProviderStack
+                    thread={thread}
+                    providerEntryByInstanceId={props.providerEntryByInstanceId}
+                  />
                   {needsYou ? (
                     sidebarStreamActivity(thread, status)
                   ) : variantAction === "unsnooze" && props.snoozeWakeLabelText !== null ? (
@@ -1416,8 +1425,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                       {props.snoozeWakeLabelText}
                     </span>
                   ) : (
-                    <>
-                      {projectName ? `${projectName} · ` : null}
+                    <span className="truncate">
                       {isWorking ? (
                         backgroundCount > 0 ? (
                           `${backgroundCount} ${backgroundCount === 1 ? "task" : "tasks"}`
@@ -1440,7 +1448,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                           }
                         />
                       )}
-                    </>
+                    </span>
                   )}
                 </span>
                 {variantAction === "unsnooze" ? (

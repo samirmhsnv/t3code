@@ -412,6 +412,7 @@ function useSidebarThreads(input: {
   readonly routeRowThreadKey: string | null;
   // Boring mode: in-play threads lead as status lanes, the rest follow as one flat list.
   readonly streamLayout: boolean;
+  readonly projectNameOf: (thread: EnvironmentThreadShell) => string;
 }) {
   const {
     projectScopeKey,
@@ -423,6 +424,7 @@ function useSidebarThreads(input: {
     delegatedUnderParent,
     routeRowThreadKey,
     streamLayout,
+    projectNameOf,
   } = input;
   // The stream's Working lane replaces the Working shelf.
   const workingShelfEnabled =
@@ -528,8 +530,16 @@ function useSidebarThreads(input: {
     [...stream.needsYou, ...stream.working, ...stream.done].map(threadShellKey),
   );
   // Threads out of play, below the stream; null outside boring mode.
+  // By project name, then newest first within a project.
   const openThreads = streamLayout
-    ? activeThreads.filter((thread) => !cardKeys.has(threadShellKey(thread)))
+    ? activeThreads
+        .filter((thread) => !cardKeys.has(threadShellKey(thread)))
+        .toSorted(
+          (left, right) =>
+            projectNameOf(left).localeCompare(projectNameOf(right), undefined, {
+              sensitivity: "base",
+            }) || activityMsOf(right) - activityMsOf(left),
+        )
     : null;
   const orderedThreads = [
     ...pinnedThreads,
@@ -1220,6 +1230,11 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     delegatedUnderParent,
     routeRowThreadKey,
     streamLayout: boringSidebarEnabled,
+    projectNameOf: (thread) =>
+      projectDisplayNameByKey
+        .get(`${thread.environmentId}:${thread.projectId}`)
+        ?.split("/")
+        .pop() ?? "",
   });
 
   // Ranked across environments as the palette ranks them, so one
@@ -3244,7 +3259,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                               <li
                                 key="settled-shelf"
                                 // Pinned to the list's foot so the shelf stays reachable however long it gets.
-                                className="sticky bottom-0 z-10 mt-auto list-none bg-sidebar pt-3"
+                                className="sticky bottom-0 z-10 mt-auto list-none bg-sidebar surface-grain pt-3"
                               >
                                 <CollapsibleSectionHeader
                                   data-sidebar-row="shelf:settled"
