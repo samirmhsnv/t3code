@@ -3466,7 +3466,11 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                           for (const folder of openFolders) pushFolder(folder);
                           if (settledFolders.length > 0) {
                             items.push(
-                              <li key="settled-projects" className="mt-3 list-none">
+                              <li
+                                key="settled-projects"
+                                // Pinned to the list's foot so the shelf stays reachable however long it gets.
+                                className="sticky bottom-0 z-10 mt-auto list-none bg-sidebar pt-3"
+                              >
                                 <CollapsibleSectionHeader
                                   data-sidebar-row="shelf:settled-projects"
                                   data-testid="sidebar-settled-projects-toggle"
