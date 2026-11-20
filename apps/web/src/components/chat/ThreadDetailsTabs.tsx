@@ -37,7 +37,7 @@ import {
 } from "../pullRequest/pullRequestPresentation";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { ThreadDetailsSection } from "./ThreadDetailsSection";
-import { changeBarQuarters, groupUncommittedFiles, threadNowNext } from "./threadDetailsTabs.logic";
+import { groupUncommittedFiles, threadNowNext } from "./threadDetailsTabs.logic";
 
 function DetailsRow({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -291,37 +291,6 @@ export function ThreadDetailsPullRequestSection({ threadRef }: { threadRef: Scop
 const DETAILS_BUTTON_CLASS =
   "flex h-6 min-w-0 cursor-pointer items-center gap-2 rounded-md px-1.5 text-left outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring";
 
-function ChangeBar({
-  additions,
-  deletions,
-  largest,
-}: {
-  additions: number;
-  deletions: number;
-  largest: number;
-}) {
-  const filled = changeBarQuarters(additions + deletions, largest);
-  const added =
-    additions + deletions === 0 ? 0 : Math.round((filled * additions) / (additions + deletions));
-  return (
-    <span aria-hidden className="flex shrink-0 gap-px">
-      {[0, 1, 2, 3].map((cell) => (
-        <span
-          key={cell}
-          className={cn(
-            "h-1.5 w-2 rounded-xs",
-            cell < added
-              ? "bg-diff-addition"
-              : cell < filled
-                ? "bg-diff-deletion"
-                : "bg-muted-foreground/20",
-          )}
-        />
-      ))}
-    </span>
-  );
-}
-
 function kindLetter(kind: string): string {
   return kind.charAt(0).toUpperCase();
 }
@@ -348,9 +317,6 @@ function NestedRepoChanges({
   repos: ReadonlyArray<NestedRepo>;
   projectTitle: string;
 }) {
-  const largest = Math.max(
-    ...repos.flatMap((repo) => repo.files.map((file) => file.insertions + file.deletions)),
-  );
   return (
     <div className="flex flex-col gap-3 px-4 py-3 text-xs">
       <span className="text-sm font-medium">Changes in repos</span>
@@ -374,7 +340,6 @@ function NestedRepoChanges({
                 {kindLetter(file.kind)}
               </span>
               <span className="min-w-0 flex-1 truncate font-mono">{file.path}</span>
-              <ChangeBar additions={file.insertions} deletions={file.deletions} largest={largest} />
               <LineCounts additions={file.insertions} deletions={file.deletions} />
             </span>
           ))}
@@ -448,62 +413,43 @@ function UncommittedFiles({
   threadRef: ScopedThreadRef;
   onOpenChanges?: (() => void) | undefined;
 }) {
-  const directories = groupUncommittedFiles(tree.files);
-  const largest = Math.max(...tree.files.map((file) => file.insertions + file.deletions));
-  const total = tree.insertions + tree.deletions;
+  const files = groupUncommittedFiles(tree.files).flatMap(({ directory, files: inDirectory }) =>
+    inDirectory.map((file) => ({
+      ...file,
+      folder: directory.replace(/\/$/, "").split("/").pop() ?? "",
+    })),
+  );
   return (
-    <div className="flex flex-col gap-3 px-4 py-3 text-xs">
-      <div className="flex flex-col gap-1.5">
-        <div className="flex items-baseline gap-2">
-          <span className="text-sm font-medium tabular-nums">
-            {tree.files.length === 1
-              ? "1 uncommitted file"
-              : `${tree.files.length} uncommitted files`}
-          </span>
-          <LineCounts additions={tree.insertions} deletions={tree.deletions} />
-        </div>
-        {total > 0 ? (
-          <span aria-hidden className="flex h-1 overflow-hidden rounded-full bg-muted">
-            <span
-              className="bg-diff-addition"
-              style={{ width: `${(tree.insertions / total) * 100}%` }}
-            />
-            <span className="flex-1 bg-diff-deletion" />
-          </span>
-        ) : null}
+    <div className="flex flex-col gap-2 px-4 py-3 text-xs">
+      <div className="flex items-baseline gap-2 px-1">
+        <span className="text-sm font-medium tabular-nums">
+          {tree.files.length === 1 ? "1 changed file" : `${tree.files.length} changed files`}
+        </span>
+        <span className="flex-1" />
+        <LineCounts additions={tree.insertions} deletions={tree.deletions} />
       </div>
-      <div className="flex flex-col gap-2">
-        {directories.map((directory) => (
-          <div key={directory.directory} className="flex flex-col">
-            {directory.directory === "" ? null : (
-              <span className="flex min-w-0 items-center gap-1.5 py-0.5 text-muted-foreground">
-                <FolderIcon aria-hidden className="size-3 shrink-0" />
-                <span className="truncate font-mono">{directory.directory}</span>
-              </span>
-            )}
-            {directory.files.map((file) => (
-              <button
-                key={file.path}
-                type="button"
-                aria-label={`${file.path}, ${file.additions} added, ${file.deletions} removed`}
-                disabled={onOpenChanges === undefined}
-                onClick={() => {
-                  onOpenChanges?.();
-                  // Opening the panel selects the branch range; these files are the working tree.
-                  useDiffPanelStore.getState().selectGitScope(threadRef, "unstaged");
-                }}
-                className="flex h-6 min-w-0 items-center gap-2 rounded-md px-1 text-left outline-none enabled:hover:bg-accent focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-              >
-                <span className="min-w-0 flex-1 truncate font-mono">{file.name}</span>
-                <ChangeBar
-                  additions={file.additions}
-                  deletions={file.deletions}
-                  largest={largest}
-                />
-                <LineCounts additions={file.additions} deletions={file.deletions} />
-              </button>
-            ))}
-          </div>
+      <div className="flex flex-col">
+        {files.map((file) => (
+          <button
+            key={file.path}
+            type="button"
+            aria-label={`${file.path}, ${file.additions} added, ${file.deletions} removed`}
+            disabled={onOpenChanges === undefined}
+            onClick={() => {
+              onOpenChanges?.();
+              // Opening the panel selects the branch range; these files are the working tree.
+              useDiffPanelStore.getState().selectGitScope(threadRef, "unstaged");
+            }}
+            className="flex h-7 min-w-0 items-center gap-2 rounded-md px-1 text-left outline-none enabled:hover:bg-accent focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+          >
+            <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
+              <span className="truncate text-foreground">{file.name}</span>
+              {file.folder ? (
+                <span className="min-w-0 shrink truncate text-muted-foreground">{file.folder}</span>
+              ) : null}
+            </span>
+            <LineCounts additions={file.additions} deletions={file.deletions} />
+          </button>
         ))}
       </div>
     </div>

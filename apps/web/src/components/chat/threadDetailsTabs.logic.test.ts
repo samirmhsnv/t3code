@@ -1,7 +1,7 @@
 import type { OrchestrationV2PlanArtifact } from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
-import { changeBarQuarters, groupUncommittedFiles, threadNowNext } from "./threadDetailsTabs.logic";
+import { groupUncommittedFiles, threadNowNext } from "./threadDetailsTabs.logic";
 
 function checklist(
   steps: ReadonlyArray<{ text: string; status: "pending" | "running" | "completed" }>,
@@ -81,16 +81,5 @@ describe("groupUncommittedFiles", () => {
         ],
       },
     ]);
-  });
-});
-
-describe("changeBarQuarters", () => {
-  it.each([
-    [0, 100, 0],
-    [1, 100, 1],
-    [50, 100, 2],
-    [100, 100, 4],
-  ])("%i of %i lines fills %i quarters", (lines, largest, quarters) => {
-    expect(changeBarQuarters(lines, largest)).toBe(quarters);
   });
 });

@@ -77,9 +77,3 @@ export function groupUncommittedFiles(
   }
   return [...directories].map(([directory, list]) => ({ directory, files: list }));
 }
-
-/** A file's share of the largest change, in quarters, so tiny edits still show a sliver. */
-export function changeBarQuarters(lines: number, largest: number): number {
-  if (lines <= 0 || largest <= 0) return 0;
-  return Math.max(1, Math.round((lines / largest) * 4));
-}
