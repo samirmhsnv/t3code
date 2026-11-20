@@ -295,11 +295,44 @@ function kindLetter(kind: string): string {
   return kind.charAt(0).toUpperCase();
 }
 
-function LineCounts({ additions, deletions }: { additions: number; deletions: number }) {
+function LineCounts({
+  additions,
+  deletions,
+  hideZero = false,
+}: {
+  additions: number;
+  deletions: number;
+  hideZero?: boolean;
+}) {
+  const showAdditions = !hideZero || additions > 0;
+  const showDeletions = !hideZero || deletions > 0;
+  if (!showAdditions && !showDeletions) return null;
   return (
-    <span className="shrink-0 font-mono tabular-nums">
-      <span className="text-diff-addition-foreground">+{additions}</span>{" "}
-      <span className="text-diff-deletion-foreground">−{deletions}</span>
+    <span className="flex shrink-0 gap-1.5 font-mono tabular-nums">
+      {showAdditions ? <span className="text-diff-addition-foreground">+{additions}</span> : null}
+      {showDeletions ? <span className="text-diff-deletion-foreground">−{deletions}</span> : null}
+    </span>
+  );
+}
+
+/**
+ * A file's name, then its parent folder dimmed. The folder gives way first and the extension
+ * never truncates, so a long name still reads as the file it is.
+ */
+function FilePathLabel({ path }: { path: string }) {
+  const segments = path.split("/");
+  const name = segments.pop() ?? path;
+  const folder = segments.pop() ?? "";
+  const dot = name.lastIndexOf(".");
+  const stem = dot > 0 ? name.slice(0, dot) : name;
+  const extension = dot > 0 ? name.slice(dot) : "";
+  return (
+    <span className="flex min-w-0 flex-1 items-baseline gap-1.5 overflow-hidden">
+      <span className="flex max-w-full shrink-0 text-foreground">
+        <span className="truncate">{stem}</span>
+        <span className="shrink-0">{extension}</span>
+      </span>
+      {folder ? <span className="min-w-0 truncate text-muted-foreground">{folder}</span> : null}
     </span>
   );
 }
@@ -334,13 +367,13 @@ function NestedRepoChanges({
             <span
               key={file.path}
               aria-label={`${file.path}, ${file.insertions} added, ${file.deletions} removed`}
-              className="flex h-6 min-w-0 items-center gap-2 px-1"
+              className="flex h-7 min-w-0 items-center gap-2 px-1"
             >
               <span className="w-3 shrink-0 font-mono text-info-foreground">
                 {kindLetter(file.kind)}
               </span>
-              <span className="min-w-0 flex-1 truncate font-mono">{file.path}</span>
-              <LineCounts additions={file.insertions} deletions={file.deletions} />
+              <FilePathLabel path={file.path} />
+              <LineCounts additions={file.insertions} deletions={file.deletions} hideZero />
             </span>
           ))}
           {repo.fileCount > repo.files.length ? (
@@ -396,6 +429,10 @@ export function ThreadDetailsFilesTab(props: {
   );
 }
 
+const COLLAPSED_FILE_COUNT = 8;
+// A toggle that reveals only a row or two costs more than showing them.
+const MIN_HIDDEN_FILES = 3;
+
 function UncommittedFiles({
   tree,
   threadRef,
@@ -413,44 +450,54 @@ function UncommittedFiles({
   threadRef: ScopedThreadRef;
   onOpenChanges?: (() => void) | undefined;
 }) {
-  const files = groupUncommittedFiles(tree.files).flatMap(({ directory, files: inDirectory }) =>
-    inDirectory.map((file) => ({
-      ...file,
-      folder: directory.replace(/\/$/, "").split("/").pop() ?? "",
-    })),
-  );
+  const [expanded, setExpanded] = useState(false);
+  const files = groupUncommittedFiles(tree.files).flatMap((group) => group.files);
+  const collapsible = files.length > COLLAPSED_FILE_COUNT + MIN_HIDDEN_FILES - 1;
+  const visible = collapsible && !expanded ? files.slice(0, COLLAPSED_FILE_COUNT) : files;
   return (
-    <div className="flex flex-col gap-2 px-4 py-3 text-xs">
+    <div className="flex flex-col gap-1.5 px-4 py-3 text-xs">
       <div className="flex items-baseline gap-2 px-1">
-        <span className="text-sm font-medium tabular-nums">
-          {tree.files.length === 1 ? "1 changed file" : `${tree.files.length} changed files`}
-        </span>
+        <span className="text-sm font-medium">Changed files</span>
+        <span className="text-muted-foreground tabular-nums">{files.length}</span>
         <span className="flex-1" />
         <LineCounts additions={tree.insertions} deletions={tree.deletions} />
       </div>
       <div className="flex flex-col">
-        {files.map((file) => (
-          <button
-            key={file.path}
-            type="button"
-            aria-label={`${file.path}, ${file.additions} added, ${file.deletions} removed`}
-            disabled={onOpenChanges === undefined}
-            onClick={() => {
-              onOpenChanges?.();
-              // Opening the panel selects the branch range; these files are the working tree.
-              useDiffPanelStore.getState().selectGitScope(threadRef, "unstaged");
-            }}
-            className="flex h-7 min-w-0 items-center gap-2 rounded-md px-1 text-left outline-none enabled:hover:bg-accent focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-          >
-            <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
-              <span className="truncate text-foreground">{file.name}</span>
-              {file.folder ? (
-                <span className="min-w-0 shrink truncate text-muted-foreground">{file.folder}</span>
-              ) : null}
-            </span>
-            <LineCounts additions={file.additions} deletions={file.deletions} />
-          </button>
+        {visible.map((file) => (
+          <Tooltip key={file.path}>
+            <TooltipTrigger
+              render={
+                <button
+                  type="button"
+                  aria-label={`${file.path}, ${file.additions} added, ${file.deletions} removed`}
+                  disabled={onOpenChanges === undefined}
+                  onClick={() => {
+                    onOpenChanges?.();
+                    // Opening the panel selects the branch range; these files are the working tree.
+                    useDiffPanelStore.getState().selectGitScope(threadRef, "unstaged");
+                  }}
+                  className="flex h-7 min-w-0 items-center gap-3 rounded-md px-1 text-left outline-none enabled:cursor-pointer enabled:hover:bg-accent focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                />
+              }
+            >
+              <FilePathLabel path={file.path} />
+              <LineCounts additions={file.additions} deletions={file.deletions} hideZero />
+            </TooltipTrigger>
+            <TooltipPopup side="left">
+              <span className="font-mono break-all">{file.path}</span>
+            </TooltipPopup>
+          </Tooltip>
         ))}
+        {collapsible ? (
+          <button
+            type="button"
+            aria-expanded={expanded}
+            onClick={() => setExpanded(!expanded)}
+            className="flex h-7 cursor-pointer items-center rounded-md px-1 text-left text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+          >
+            {expanded ? "Show less" : `Show ${files.length - COLLAPSED_FILE_COUNT} more`}
+          </button>
+        ) : null}
       </div>
     </div>
   );
