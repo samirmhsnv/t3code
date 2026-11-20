@@ -46,3 +46,33 @@ export class McpServersListError extends Schema.TaggedError<McpServersListError>
     return `Failed to list MCP servers during ${this.operation}.`;
   }
 }
+
+export const McpServerStatus = Schema.Literals([
+  "connected",
+  "needs-auth",
+  "failed",
+  "pending",
+  "not-configured",
+  "unknown",
+]);
+export type McpServerStatus = typeof McpServerStatus.Type;
+
+/** Where Claude got a server it reports: the claude.ai account, a plugin, or a config file. */
+export const McpServerHealthSource = Schema.Literals(["account", "plugin", "config"]);
+export type McpServerHealthSource = typeof McpServerHealthSource.Type;
+
+export const McpServerHealthEntry = Schema.Struct({
+  name: TrimmedNonEmptyString,
+  providerInstanceId: ProviderInstanceId,
+  source: McpServerHealthSource,
+  transport: McpServerTransport,
+  target: Schema.String,
+  status: McpServerStatus,
+});
+export type McpServerHealthEntry = typeof McpServerHealthEntry.Type;
+
+export const McpServersHealthResult = Schema.Struct({
+  servers: Schema.Array(McpServerHealthEntry),
+  checkedAt: IsoDateTime,
+});
+export type McpServersHealthResult = typeof McpServersHealthResult.Type;

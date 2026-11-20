@@ -6,8 +6,11 @@ import {
   ProviderInstanceId,
   resolveProviderInstanceEnabled,
   type McpServerEntry,
+  type McpServerHealthEntry,
   type McpServerProvider,
+  type McpServerStatus,
   type McpServerTransport,
+  type McpServersHealthResult,
   type McpServersListResult,
   type ProjectId,
   type ProviderInstanceConfig,
@@ -25,14 +28,24 @@ import * as Schema from "effect/Schema";
 import * as HostProcess from "@t3tools/shared/HostProcess";
 import { expandHomePath } from "@t3tools/provider-core/server/pathExpansion";
 
+import * as ServerConfig from "../config.ts";
 import * as ProjectStore from "../orchestration-v2/ProjectStore.ts";
+import * as ProcessRunner from "../processRunner.ts";
+import {
+  makeClaudeEnvironment,
+  mergeClaudeProcessEnvironment,
+} from "../provider/Drivers/ClaudeHome.ts";
 import { resolveCodexHomeLayout } from "../provider/Drivers/CodexHomeLayout.ts";
 import * as ServerSettingsService from "../serverSettings.ts";
 
 /** The MCP servers each provider on this machine would load, read from the provider's own config. */
 export class McpServerCatalog extends Context.Service<
   McpServerCatalog,
-  { readonly list: Effect.Effect<McpServersListResult, McpServersListError> }
+  {
+    readonly list: Effect.Effect<McpServersListResult, McpServersListError>;
+    /** Asks each Claude account's CLI, which also reports claude.ai and plugin servers, with live status. */
+    readonly health: Effect.Effect<McpServersHealthResult, McpServersListError>;
+  }
 >()("t3/mcp/McpServerCatalog") {}
 
 export interface ParsedMcpServer {
@@ -143,6 +156,62 @@ export function parseCodexMcpServers(toml: string): ParsedMcpServer[] {
   }));
 }
 
+function claudeListStatus(text: string): McpServerStatus {
+  const status = text.toLowerCase();
+  if (status.includes("connected") && !status.includes("failed")) return "connected";
+  if (status.includes("auth")) return "needs-auth";
+  if (status.includes("failed")) return "failed";
+  if (status.includes("pending")) return "pending";
+  if (status.includes("not configured")) return "not-configured";
+  return "unknown";
+}
+
+/**
+ * Reads `claude mcp list`, which has no JSON form: one `<name>: <command or url> - <status>`
+ * line per server. Plugin names contain colons, but only the separator is followed by a space.
+ */
+export function parseClaudeMcpList(
+  stdout: string,
+): Array<Omit<McpServerHealthEntry, "providerInstanceId">> {
+  return stdout.split(/\r?\n/).flatMap((rawLine) => {
+    const line = rawLine.trim();
+    const nameEnd = line.indexOf(": ");
+    const statusStart = line.lastIndexOf(" - ");
+    if (nameEnd <= 0 || statusStart < nameEnd) return [];
+    const rawName = line.slice(0, nameEnd).trim();
+    // "Not configured" uses "-" as its icon, which leaves a second " - " before the status.
+    let middle = line
+      .slice(nameEnd + 2, statusStart)
+      .trim()
+      .replace(/\s*-$/, "");
+    const statusText = line.slice(statusStart + 3).replace(/^[^\p{L}]+/u, "");
+    const suffix = /\s*\((HTTP|SSE|stdio)\)$/i.exec(middle);
+    if (suffix) middle = middle.slice(0, suffix.index).trim();
+    const marker = suffix?.[1]?.toLowerCase();
+    const isUrl = /^https?:\/\//i.test(middle);
+    const transport: McpServerTransport =
+      marker === "sse" ? "sse" : marker === "http" || isUrl ? "http" : "stdio";
+    const source = rawName.startsWith("claude.ai ")
+      ? "account"
+      : rawName.startsWith("plugin:")
+        ? "plugin"
+        : "config";
+    const name = source === "account" ? rawName.slice("claude.ai ".length).trim() : rawName;
+    if (name.length === 0) return [];
+    return [
+      {
+        name,
+        source,
+        transport,
+        target: isUrl
+          ? displayTarget(undefined, middle)
+          : displayTarget(middle.split(/\s+/)[0], undefined),
+        status: claudeListStatus(statusText),
+      },
+    ];
+  });
+}
+
 const decodeJson = Schema.decodeEffect(Schema.fromJsonString(Schema.Unknown));
 const decodeClaudeSettings = Schema.decodeUnknownOption(ClaudeSettings);
 const decodeCodexSettings = Schema.decodeUnknownOption(CodexSettings);
@@ -152,6 +221,8 @@ const make = Effect.gen(function* () {
   const path = yield* Path.Path;
   const serverSettings = yield* ServerSettingsService.ServerSettingsService;
   const projectStore = yield* ProjectStore.ProjectStoreV2;
+  const processRunner = yield* ProcessRunner.ProcessRunner;
+  const { stateDir } = yield* ServerConfig.ServerConfig;
   const hostEnvironment = yield* HostProcess.Environment;
   const homeDir = yield* HostProcess.HomeDirectory;
 
@@ -294,7 +365,57 @@ const make = Effect.gen(function* () {
     } satisfies McpServersListResult;
   }).pipe(Effect.withSpan("McpServerCatalog.list"));
 
-  return McpServerCatalog.of({ list });
+  const health = Effect.gen(function* () {
+    const settings = yield* serverSettings.getSettings.pipe(
+      Effect.mapError((cause) => new McpServersListError({ operation: "read-settings", cause })),
+    );
+    const servers: McpServerHealthEntry[] = [];
+    const seenConfigDirs = new Set<string>();
+    for (const { instanceId, config } of enabledInstances(settings, "claudeAgent")) {
+      const decoded = decodeClaudeSettings(config.config ?? {});
+      if (Option.isNone(decoded)) continue;
+      const baseEnv = yield* mergeClaudeProcessEnvironment(
+        decoded.value,
+        config.environment,
+        hostEnvironment,
+      ).pipe(
+        Effect.provideService(HostProcess.HomeDirectory, homeDir),
+        Effect.provideService(FileSystem.FileSystem, fileSystem),
+        Effect.provideService(Path.Path, path),
+      );
+      const env = yield* makeClaudeEnvironment(decoded.value, baseEnv).pipe(
+        Effect.provideService(Path.Path, path),
+        Effect.provideService(HostProcess.HomeDirectory, homeDir),
+      );
+      const configKey = env.CLAUDE_CONFIG_DIR ?? "";
+      if (seenConfigDirs.has(configKey)) continue;
+      seenConfigDirs.add(configKey);
+      const output = yield* processRunner
+        .run({
+          command: expandHomePath(decoded.value.binaryPath, homeDir),
+          args: ["mcp", "list"],
+          // Like the driver: some `claude` wrappers refuse to run from $HOME.
+          cwd: stateDir,
+          env,
+          // It connects to every server to check it.
+          timeout: "90 seconds",
+          timeoutBehavior: "timedOutResult",
+          maxOutputBytes: 512 * 1024,
+          outputMode: "truncate",
+        })
+        .pipe(Effect.option);
+      if (Option.isNone(output) || output.value.timedOut) continue;
+      for (const server of parseClaudeMcpList(output.value.stdout)) {
+        servers.push({ ...server, providerInstanceId: instanceId });
+      }
+    }
+    return {
+      servers,
+      checkedAt: DateTime.formatIso(yield* DateTime.now),
+    } satisfies McpServersHealthResult;
+  }).pipe(Effect.withSpan("McpServerCatalog.health"));
+
+  return McpServerCatalog.of({ list, health });
 });
 
-export const layer = Layer.effect(McpServerCatalog, make);
+export const layer = Layer.effect(McpServerCatalog, make).pipe(Layer.provide(ProcessRunner.layer));

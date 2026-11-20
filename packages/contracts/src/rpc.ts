@@ -109,7 +109,12 @@ import {
   AgentSessionScanResult,
   AgentSessionScanError,
 } from "./agentSessions.ts";
-import { McpServersListError, McpServersListInput, McpServersListResult } from "./mcpServers.ts";
+import {
+  McpServersHealthResult,
+  McpServersListError,
+  McpServersListInput,
+  McpServersListResult,
+} from "./mcpServers.ts";
 import {
   AssetAccessError,
   AssetCreateUrlInput,
@@ -468,6 +473,7 @@ export const WS_METHODS = {
   agentSessionsScan: "agentSessions.scan",
   agentSessionsImport: "agentSessions.import",
   mcpServersList: "mcpServers.list",
+  mcpServersHealth: "mcpServers.health",
   assetsCreateUrl: "assets.createUrl",
   assetsPersistChatAttachments: "assets.persistChatAttachments",
   attachmentsCreateUploadUrl: "attachments.createUploadUrl",
@@ -1636,6 +1642,12 @@ const WsMcpServersListRpc = Rpc.make(WS_METHODS.mcpServersList, {
   error: Schema.Union([McpServersListError, EnvironmentAuthorizationError]),
 });
 
+const WsMcpServersHealthRpc = Rpc.make(WS_METHODS.mcpServersHealth, {
+  payload: McpServersListInput,
+  success: McpServersHealthResult,
+  error: Schema.Union([McpServersListError, EnvironmentAuthorizationError]),
+});
+
 const WsAgentSessionsImportRpc = Rpc.make(WS_METHODS.agentSessionsImport, {
   payload: AgentSessionImportInput,
   success: AgentSessionImportResult,
@@ -2446,6 +2458,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsAgentSessionsScanRpc,
   WsAgentSessionsImportRpc,
   WsMcpServersListRpc,
+  WsMcpServersHealthRpc,
   WsAssetsCreateUrlRpc,
   WsAssetsPersistChatAttachmentsRpc,
   WsAttachmentsCreateUploadUrlRpc,

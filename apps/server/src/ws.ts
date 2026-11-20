@@ -3077,6 +3077,7 @@ export const layerWsRpc = (
         [WS_METHODS.attachmentsDelete]: (input) => deletePendingAttachment(input.attachmentId),
         [WS_METHODS.agentSessionsScan]: () => agentSessionScanner.scan,
         [WS_METHODS.mcpServersList]: () => mcpServerCatalog.list,
+        [WS_METHODS.mcpServersHealth]: () => mcpServerCatalog.health,
         [WS_METHODS.agentSessionsImport]: (input) =>
           agentSessionImporter.importRecentAgentThreads(input),
         [WS_METHODS.assetsCreateUrl]:
