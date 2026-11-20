@@ -1,3 +1,4 @@
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { ChatGptUsageButton } from "../settings/ChatGptUsageButton";
 import { usesChatGptSharing } from "@t3tools/shared/usageLimits";
 import { RefreshIcon } from "~/components/ui/refresh-icon";
@@ -199,7 +200,9 @@ export function UsagePage() {
       preferences.windowDays === 1 ? "hour" : "day",
     ),
   }));
-  const metric = preferences.metric;
+  const linkedMetric = useSearch({ from: "/_chat/usage", select: (search) => search.metric });
+  const navigate = useNavigate();
+  const metric = linkedMetric ?? preferences.metric;
   const showingLimits = metric === "limits";
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [limitsNow, setLimitsNow] = useState(() => Date.now());
@@ -251,6 +254,7 @@ export function UsagePage() {
   const selectMetric = (nextMetric: UsageMetric) => {
     if (nextMetric === "limits") setLimitsNow(Date.now());
     updatePreferences({ metric: nextMetric });
+    if (linkedMetric !== undefined) void navigate({ to: "/usage", search: {}, replace: true });
   };
   const refreshLimits = (automatic = false) =>
     // Settled so the timestamp still advances when a refresh throws.

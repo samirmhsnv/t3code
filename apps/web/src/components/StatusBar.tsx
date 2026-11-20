@@ -1,5 +1,5 @@
 import { RegistryContext, useAtomValue } from "@effect/atom-react";
-import { useParams } from "@tanstack/react-router";
+import { Link, useParams } from "@tanstack/react-router";
 import { scopeProjectRef, scopeThreadRef } from "@t3tools/client-runtime/environment";
 import type {
   EnvironmentId,
@@ -160,7 +160,15 @@ function ProviderLimit({
   const name = provider.displayName ?? provider.driver;
   return (
     <Tooltip>
-      <TooltipTrigger render={<StatusItem />}>
+      <TooltipTrigger
+        render={
+          <Link
+            to="/usage"
+            search={{ metric: "limits" }}
+            className={cn(STATUS_ITEM_CLASS, "cursor-pointer")}
+          />
+        }
+      >
         <ProviderInstanceIcon
           driverKind={provider.driver}
           displayName={name}
@@ -360,17 +368,12 @@ function BudgetHeadline({ spent, budget }: { spent: number; budget: number }) {
   );
 }
 
+const STATUS_ITEM_CLASS =
+  "inline-flex h-5 shrink-0 items-center gap-1.5 rounded px-1 hover:bg-accent hover:text-foreground";
+
 /** A hoverable bar segment; tooltips anchor to it. */
 function StatusItem(props: ComponentProps<"span">) {
-  return (
-    <span
-      {...props}
-      className={cn(
-        "inline-flex h-5 shrink-0 cursor-default items-center gap-1.5 rounded px-1 hover:bg-accent hover:text-foreground",
-        props.className,
-      )}
-    />
-  );
+  return <span {...props} className={cn(STATUS_ITEM_CLASS, "cursor-default", props.className)} />;
 }
 
 function formatGigabytes(bytes: number): string {
