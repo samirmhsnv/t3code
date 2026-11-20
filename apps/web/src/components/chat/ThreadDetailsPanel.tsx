@@ -166,7 +166,10 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
         return (
           <>
             <div className="group/details-items">
-              {props.draftId ? null : <ThreadDetailsActivitySection threadRef={activeThreadRef} />}
+              {/* Activity leads the git rows in one section; apart, their paddings stack into a gap. */}
+              {props.draftId || show.branch || show.pullRequests || show.git ? null : (
+                <ThreadDetailsActivitySection threadRef={activeThreadRef} />
+              )}
               {show.branch || show.pullRequests || show.git ? (
                 <ThreadDetailsSection
                   headingId="thread-details-version-control-heading"
@@ -175,6 +178,9 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
                   separated={false}
                 >
                   <div className="flex flex-col">
+                    {props.draftId ? null : (
+                      <ThreadDetailsActivitySection threadRef={activeThreadRef} embedded />
+                    )}
                     {show.branch ? (
                       <BranchToolbar layout="panel" panelSection="branch" {...branchToolbarProps} />
                     ) : null}

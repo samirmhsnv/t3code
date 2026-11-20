@@ -1798,53 +1798,49 @@ function CheckoutGitActionsControl({
             }
           >
             <FileDiffIcon className={THREAD_DETAILS_PANEL_ICON_CLASS} aria-hidden />
-            <span className="flex min-w-0 flex-1 items-baseline gap-1.5">
-              <span className="shrink-0">
-                <T>Changes</T>
+            <span className="min-w-0 flex-1 truncate">
+              <T>Changes</T>
+              {/* Shown only in the tooltip, so screen readers still hear what it compares to. */}
+              {changesBaseLabel ? <span className="sr-only"> {changesBaseLabel}</span> : null}
+            </span>
+            <span className="flex shrink-0 gap-1.5 font-mono text-xs font-normal tabular-nums">
+              <span
+                className={
+                  changesTotals.insertions
+                    ? "text-diff-addition-foreground"
+                    : "text-muted-foreground"
+                }
+              >
+                +{formatDiffCount(changesTotals.insertions)}
               </span>
-              {changesBaseLabel ? (
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <span className="pointer-events-auto min-w-0 truncate font-normal text-muted-foreground" />
-                    }
-                  >
-                    {changesBaseLabel}
-                  </TooltipTrigger>
-                  <TooltipPopup side="top" className="max-w-96 break-words">
-                    {changesBaseLabel}
-                  </TooltipPopup>
-                </Tooltip>
-              ) : null}
-              <span className="ml-auto flex shrink-0 items-baseline gap-2 ps-2 font-mono tabular-nums">
-                <span
-                  className={
-                    changesTotals.insertions
-                      ? "text-diff-addition-foreground"
-                      : "text-muted-foreground"
-                  }
-                >
-                  +{formatDiffCount(changesTotals.insertions)}
-                </span>
-                <span
-                  className={
-                    changesTotals.deletions
-                      ? "text-diff-deletion-foreground"
-                      : "text-muted-foreground"
-                  }
-                >
-                  -{formatDiffCount(changesTotals.deletions)}
-                </span>
+              <span
+                className={
+                  changesTotals.deletions
+                    ? "text-diff-deletion-foreground"
+                    : "text-muted-foreground"
+                }
+              >
+                −{formatDiffCount(changesTotals.deletions)}
               </span>
             </span>
           </TooltipTrigger>
-          {changesBreakdown && (changesTotals.insertions > 0 || changesTotals.deletions > 0) ? (
-            // Base UI fixes the popup width on open; remeasure when the breakdown changes.
-            <TooltipPopup key={JSON.stringify(changesBreakdown)} side="bottom">
-              <ChangeBreakdownGrid
-                breakdown={changesBreakdown}
-                total={{ additions: changesTotals.insertions, deletions: changesTotals.deletions }}
-              />
+          {/* The comparison target lives here; the row has no room for it at panel width. */}
+          {changesBaseLabel ? (
+            // Base UI fixes the popup width on open; remeasure when the content changes.
+            <TooltipPopup key={JSON.stringify([changesBaseLabel, changesBreakdown])} side="bottom">
+              <span className="flex flex-col gap-1.5">
+                <span className="break-words text-muted-foreground">{changesBaseLabel}</span>
+                {changesBreakdown &&
+                (changesTotals.insertions > 0 || changesTotals.deletions > 0) ? (
+                  <ChangeBreakdownGrid
+                    breakdown={changesBreakdown}
+                    total={{
+                      additions: changesTotals.insertions,
+                      deletions: changesTotals.deletions,
+                    }}
+                  />
+                ) : null}
+              </span>
             </TooltipPopup>
           ) : null}
         </Tooltip>

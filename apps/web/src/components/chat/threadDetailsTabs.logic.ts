@@ -37,7 +37,8 @@ export function threadNowNext(input: {
     };
   }
   if (current === null) {
-    return { now: input.working ? "Working" : null, next: null, waitingOnYou: false };
+    // A bare "Working" repeats the thread's own status, so no plan means no row.
+    return { now: null, next: null, waitingOnYou: false };
   }
   return {
     now: input.working || current.status === "running" ? current.text : null,

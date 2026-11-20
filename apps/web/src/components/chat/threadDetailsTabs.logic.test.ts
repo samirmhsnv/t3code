@@ -51,9 +51,9 @@ describe("threadNowNext", () => {
     });
   });
 
-  it("says only Working without a plan", () => {
+  it("shows nothing while working without a plan", () => {
     expect(threadNowNext({ plans: [], ...idle })).toEqual({
-      now: "Working",
+      now: null,
       next: null,
       waitingOnYou: false,
     });

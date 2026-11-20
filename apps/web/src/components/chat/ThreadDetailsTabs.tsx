@@ -41,15 +41,20 @@ import { groupUncommittedFiles, threadNowNext } from "./threadDetailsTabs.logic"
 
 function DetailsRow({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="grid grid-cols-[4.5rem_minmax(0,1fr)] gap-2 px-2.5 py-1 text-xs">
-      <span className="text-muted-foreground">{label}</span>
+    <div className="flex min-w-0 flex-col gap-0.5">
+      <span className="text-2xs text-muted-foreground select-none">{label}</span>
       <span className="min-w-0 break-words">{children}</span>
     </div>
   );
 }
 
-/** Doing now and Next, from a pending request or the newest checklist. */
-export function ThreadDetailsActivitySection({ threadRef }: { threadRef: ScopedThreadRef }) {
+function ThreadActivity({
+  threadRef,
+  embedded,
+}: {
+  threadRef: ScopedThreadRef;
+  embedded: boolean;
+}) {
   const shell = useQuietThreadShell(threadRef);
   const plans = useQuietThreadProjection(threadRef)?.projection.plans ?? [];
   const nowNext =
@@ -61,6 +66,33 @@ export function ThreadDetailsActivitySection({ threadRef }: { threadRef: ScopedT
           hasPendingUserInput: shell.hasPendingUserInput,
           working: isThreadWorking(shell),
         });
+  if (!nowNext?.now && !nowNext?.next) return null;
+  return (
+    <div className={cn("flex flex-col gap-2 px-2.5 pt-1 text-xs", embedded ? "pb-2.5" : "pb-1")}>
+      {nowNext.now ? (
+        <DetailsRow label="Doing now">
+          <span className={cn(nowNext.waitingOnYou && "text-warning-foreground")}>
+            {nowNext.now}
+          </span>
+        </DetailsRow>
+      ) : null}
+      {nowNext.next ? <DetailsRow label="Next">{nowNext.next}</DetailsRow> : null}
+    </div>
+  );
+}
+
+/**
+ * Doing now and Next, from a pending request or the newest checklist. Embedded, it renders bare
+ * rows so it can lead another section instead of standing apart from it.
+ */
+export function ThreadDetailsActivitySection({
+  threadRef,
+  embedded = false,
+}: {
+  threadRef: ScopedThreadRef;
+  embedded?: boolean;
+}) {
+  if (embedded) return <ThreadActivity threadRef={threadRef} embedded />;
   return (
     <ThreadDetailsSection
       headingId="thread-details-activity-heading"
@@ -69,14 +101,7 @@ export function ThreadDetailsActivitySection({ threadRef }: { threadRef: ScopedT
       separated={false}
     >
       <div>
-        {nowNext?.now ? (
-          <DetailsRow label="Doing now">
-            <span className={cn(nowNext.waitingOnYou && "text-warning-foreground")}>
-              {nowNext.now}
-            </span>
-          </DetailsRow>
-        ) : null}
-        {nowNext?.next ? <DetailsRow label="Next">{nowNext.next}</DetailsRow> : null}
+        <ThreadActivity threadRef={threadRef} embedded={false} />
       </div>
     </ThreadDetailsSection>
   );
