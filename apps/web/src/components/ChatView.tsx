@@ -139,7 +139,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import { ContentTabsChatSlot } from "./contentTabsChatSlot";
+import { ContentTabsChatSlot, ContentTabsNavHost } from "./contentTabsChatSlot";
 import { BackgroundThreadContext } from "./chat/backgroundThread";
 import { WorkspaceMutationIdContext } from "./chat/ChatMarkdownMedia";
 import { useLocation, useNavigate } from "@tanstack/react-router";
@@ -1163,6 +1163,14 @@ export default function ChatView(props: ChatViewProps) {
   // With the breadcrumb in the Chat tab the row empties: the panel controls are fixed to the
   // window, except the thread panel toggle beside an open inline panel, which sits in this row.
   const headerCollapsed = chatTabSlot !== null && !inlineRightPanelOwnsTitleBar;
+  // Beside an open inline panel the tab strip and panel controls move into this row, so the
+  // panel runs the window's full height.
+  const setContentTabsNavHost = use(ContentTabsNavHost);
+  const headerHostsContentTabs =
+    setContentTabsNavHost !== null &&
+    !embedded &&
+    inlineRightPanelOwnsTitleBar &&
+    !rightPanelMaximized;
 
   const latestRunSettled = isLatestRunSettled(activeLatestRun, activeRuntime);
   const activeThreadEnvironmentId = activeThread?.environmentId;
@@ -3421,7 +3429,9 @@ export default function ChatView(props: ChatViewProps) {
           state={deviceState}
         />
       )}
-      {rightPanelControlsAtRoot && !embedded ? panelLayoutControls : null}
+      {rightPanelControlsAtRoot && !embedded && !headerHostsContentTabs
+        ? panelLayoutControls
+        : null}
       <div
         className={cn(
           "flex min-h-0 min-w-0 flex-col overflow-x-hidden",
@@ -3453,14 +3463,38 @@ export default function ChatView(props: ChatViewProps) {
                   )
             }
           >
-            {isElectron && rightPanelControlsAtRoot ? (
+            {isElectron && rightPanelControlsAtRoot && !headerHostsContentTabs ? (
               <span
                 aria-hidden
                 className="pointer-events-none fixed top-[var(--workspace-controls-top)] right-[var(--workspace-controls-right)] h-[var(--workspace-topbar-height)] w-28 [-webkit-app-region:no-drag]"
               />
             ) : null}
             {!rightPanelControlsAtRoot && !rightPanelControlsInPanel ? panelLayoutControls : null}
-            {inlineRightPanelOwnsTitleBar ? threadPanelHeaderControl : null}
+            {headerHostsContentTabs ? (
+              <>
+                <div ref={setContentTabsNavHost} className="flex h-full min-w-0 flex-1" />
+                <div
+                  className="ms-2 flex h-full shrink-0 items-center gap-1 [-webkit-app-region:no-drag]"
+                  data-workspace-titlebar-controls
+                >
+                  <PanelLayoutControls
+                    {...panelToggleControlProps}
+                    showTerminalControl={false}
+                    showRightPanelControl={false}
+                  />
+                  <RightPanelMaximizeControl
+                    maximized={rightPanelMaximized}
+                    onToggle={toggleRightPanelMaximizedStable}
+                  />
+                  <PanelLayoutControls
+                    {...panelToggleControlProps}
+                    showThreadPanelControl={false}
+                  />
+                </div>
+              </>
+            ) : inlineRightPanelOwnsTitleBar ? (
+              threadPanelHeaderControl
+            ) : null}
             {chatTabSlot !== null ? createPortal(chatHeader, chatTabSlot) : chatHeader}
           </header>
         )}
@@ -4077,6 +4111,7 @@ export default function ChatView(props: ChatViewProps) {
           keybindings={keybindings}
           getShortcutContext={getShortcutContextStable}
           maximized={rightPanelMaximized}
+          windowControlsOverTabs={!headerHostsContentTabs}
           layoutControls={
             rightPanelOpen ? (
               <div className="mr-px flex items-center gap-1">
