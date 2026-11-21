@@ -77,14 +77,25 @@ function PipelineSegments({
   );
 }
 
-/** Segments with the current stage named beside them, for rows with room to spare. */
-export function PipelineStageLabel({ pipeline }: { pipeline: Pipeline }) {
+/** Segments with the current stage named beside them; compact also lets the name truncate. */
+export function PipelineStageLabel({
+  pipeline,
+  size = "default",
+}: {
+  pipeline: Pipeline;
+  size?: "default" | "compact";
+}) {
   return (
-    <span className="inline-flex shrink-0 items-center gap-1.5">
-      <PipelineSegments pipeline={pipeline} />
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5",
+        size === "compact" ? "min-w-0" : "shrink-0",
+      )}
+    >
+      <PipelineSegments pipeline={pipeline} size={size} />
       <span
         className={cn(
-          "whitespace-nowrap",
+          size === "compact" ? "truncate" : "whitespace-nowrap",
           pipeline.blocked ? "text-warning-foreground" : "text-muted-foreground",
         )}
       >

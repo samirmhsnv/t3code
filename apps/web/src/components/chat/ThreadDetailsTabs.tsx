@@ -3,8 +3,8 @@ import { resolvePullRequestDetailChecks } from "@t3tools/client-runtime/pull-req
 import { selectEnvironmentQueryData } from "@t3tools/client-runtime/state/runtime";
 import { isThreadWorking } from "@t3tools/client-runtime/state/thread-inbox";
 import { resolveThreadCurrentPullRequestLink } from "@t3tools/client-runtime/thread-pull-requests";
-import type { PullRequestReviewDecision, ScopedThreadRef } from "@t3tools/contracts";
-import { ChevronRightIcon, ExternalLinkIcon, FolderIcon } from "lucide-react";
+import type { ScopedThreadRef } from "@t3tools/contracts";
+import { ExternalLinkIcon, FolderIcon } from "lucide-react";
 import { useState, type MouseEvent, type ReactNode } from "react";
 
 import { useOpenPrLink } from "~/lib/openPullRequestLink";
@@ -28,11 +28,16 @@ import {
 
 import { PipelineStageLabel } from "../pullRequest/PipelineSegments";
 import { pipelineStage } from "../pullRequest/pipelineStage.logic";
-import { groupPullRequestChecks } from "../pullRequest/pullRequestDetail.logic";
+import {
+  classifyPullRequestChecks,
+  describePullRequestChecks,
+  groupPullRequestChecks,
+} from "../pullRequest/pullRequestDetail.logic";
 import {
   PullRequestActorAvatar,
   PullRequestCheckStatusIcon,
   pullRequestCheckStatusLabel,
+  pullRequestChecksStatePresentation,
   PullRequestReviewDecisionGlyph,
 } from "../pullRequest/pullRequestPresentation";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
@@ -107,13 +112,7 @@ export function ThreadDetailsActivitySection({
   );
 }
 
-const REVIEW_DECISION_LABELS: Record<PullRequestReviewDecision, string> = {
-  approved: "Approved",
-  "changes-requested": "Changes requested",
-  "review-required": "Review required",
-};
-
-/** The thread's open pull request: stage, each check, and the review decision. */
+/** The thread's pull request on two lines: which one, then its stage, checks and reviewers. */
 export function ThreadDetailsPullRequestSection({ threadRef }: { threadRef: ScopedThreadRef }) {
   const shell = useQuietThreadShell(threadRef);
   const serverConfigs = useServerConfigs();
@@ -149,8 +148,15 @@ export function ThreadDetailsPullRequestSection({ threadRef }: { threadRef: Scop
   const [checksExpanded, setChecksExpanded] = useState(false);
   const openPrLink = useOpenPrLink(threadRef);
   if (link === null || snapshot === null) return null;
-  const { attention, running, completed } = groupPullRequestChecks(detail?.checks ?? []);
-  const checks = [...attention, ...running, ...completed];
+  const checks = detail?.checks ?? [];
+  const { attention, running, completed } = groupPullRequestChecks(checks);
+  const unsettled = [...attention, ...running];
+  const listedChecks = unsettled.length > 0 ? unsettled : completed;
+  const hiddenPassed = unsettled.length > 0 ? completed.length : 0;
+  const checksState = classifyPullRequestChecks(checks);
+  const checksPresentation =
+    checksState === "none" ? null : pullRequestChecksStatePresentation(checksState);
+  const checksSummary = describePullRequestChecks(checks);
   const reviewDecision = snapshot.reviewDecision ?? null;
   const reviewers = detail?.reviewers ?? [];
   const pipeline = pipelineStage({
@@ -163,7 +169,7 @@ export function ThreadDetailsPullRequestSection({ threadRef }: { threadRef: Scop
   return (
     <ThreadDetailsSection headingId="thread-details-pull-request-heading" title="Pull request">
       <div className="flex flex-col gap-0.5 px-1 text-xs">
-        <div className="flex min-w-0 items-center gap-0.5">
+        <div className="group/pull-request flex min-w-0 items-center gap-0.5">
           <button
             type="button"
             aria-label={`Open #${link.number} in the right panel`}
@@ -183,7 +189,10 @@ export function ThreadDetailsPullRequestSection({ threadRef }: { threadRef: Scop
                   type="button"
                   aria-label={`Open #${link.number} on the web`}
                   onClick={() => void readLocalApi()?.shell.openExternal(link.url)}
-                  className={cn(DETAILS_BUTTON_CLASS, "shrink-0 text-muted-foreground")}
+                  className={cn(
+                    DETAILS_BUTTON_CLASS,
+                    "shrink-0 text-muted-foreground opacity-0 group-focus-within/pull-request:opacity-100 group-hover/pull-request:opacity-100 pointer-coarse:opacity-100",
+                  )}
                 />
               }
             >
@@ -192,122 +201,118 @@ export function ThreadDetailsPullRequestSection({ threadRef }: { threadRef: Scop
             <TooltipPopup side="top">Open on the web</TooltipPopup>
           </Tooltip>
         </div>
-        <button
-          type="button"
-          aria-expanded={checksExpanded}
-          aria-controls="thread-details-pull-request-checks"
-          onClick={() => setChecksExpanded((expanded) => !expanded)}
-          className={DETAILS_BUTTON_CLASS}
-        >
-          <PipelineStageLabel pipeline={pipeline} />
-          <span className="flex-1" />
-          {checks.length > 0 ? (
-            <span className="shrink-0 text-muted-foreground tabular-nums">
-              {checks.length === 1 ? "1 check" : `${checks.length} checks`}
-            </span>
-          ) : null}
-          <ChevronRightIcon
-            aria-hidden
-            className={cn("size-3.5 shrink-0 text-muted-foreground", checksExpanded && "rotate-90")}
-          />
-        </button>
-        {checksExpanded ? (
-          <div id="thread-details-pull-request-checks" className="flex flex-col gap-0.5 ps-1.5">
-            {checks.length === 0 ? (
-              <span className="px-1.5 py-1 text-muted-foreground">No checks reported.</span>
-            ) : (
-              <ul className="flex flex-col">
-                {checks.map((check, index) => {
-                  const row = (
-                    <>
-                      <PullRequestCheckStatusIcon status={check.status} />
-                      <span className="min-w-0 flex-1 truncate">{check.name}</span>
-                      <span className="shrink-0 text-muted-foreground">
-                        {pullRequestCheckStatusLabel(check)}
-                      </span>
-                    </>
-                  );
-                  const url = check.url;
-                  return (
-                    // oxlint-disable-next-line react/no-array-index-key -- Check names can repeat; rows hold no state.
-                    <li key={`${index}:${check.name}`}>
-                      {url === null ? (
-                        <span className="flex h-6 min-w-0 items-center gap-2 px-1.5">{row}</span>
-                      ) : (
-                        <button
-                          type="button"
-                          aria-label={`${check.name}: ${pullRequestCheckStatusLabel(check)}. Open details`}
-                          onClick={() => void readLocalApi()?.shell.openExternal(url)}
-                          className={cn(DETAILS_BUTTON_CLASS, "w-full")}
-                        >
-                          {row}
-                        </button>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-            <span className="flex h-6 min-w-0 items-center gap-2 px-1.5 text-muted-foreground">
-              Review
-              <span className="text-foreground">
-                {reviewDecision === null
-                  ? reviewers.length > 0
-                    ? "waiting on reviewers"
-                    : "nobody asked yet"
-                  : REVIEW_DECISION_LABELS[reviewDecision]}
-              </span>
-            </span>
-          </div>
-        ) : null}
-        <Tooltip disabled={reviewers.length === 0}>
-          <TooltipTrigger
-            render={
-              <button
-                type="button"
-                aria-label={`Open #${link.number} reviews in the right panel`}
-                onClick={openInPanel}
-                onAuxClick={openInPanel}
-                className={DETAILS_BUTTON_CLASS}
-              />
-            }
-          >
-            <span className="text-muted-foreground">Reviews</span>
-            {reviewDecision === null ? (
-              <span className="text-muted-foreground">none yet</span>
-            ) : (
-              <span className="inline-flex items-center gap-1">
-                <PullRequestReviewDecisionGlyph decision={reviewDecision} />
-                {REVIEW_DECISION_LABELS[reviewDecision]}
-              </span>
-            )}
-            {reviewers.length > 0 ? (
-              <span className="ml-auto flex shrink-0 items-center -space-x-1">
-                {reviewers.slice(0, 5).map((reviewer) => (
-                  <PullRequestActorAvatar
-                    key={reviewer.login}
-                    actor={reviewer}
-                    className="size-4 ring-1 ring-background"
+        <div className="flex h-6 min-w-0 items-center gap-0.5 ps-1.5">
+          <span className="flex min-w-0 flex-1">
+            <PipelineStageLabel pipeline={pipeline} size="compact" />
+          </span>
+          {checksPresentation === null ? null : (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <button
+                    type="button"
+                    aria-label={`Checks: ${checksSummary}`}
+                    aria-expanded={checksExpanded}
+                    aria-controls="thread-details-pull-request-checks"
+                    onClick={() => setChecksExpanded((expanded) => !expanded)}
+                    className={cn(DETAILS_BUTTON_CLASS, "shrink-0 gap-1")}
                   />
-                ))}
-              </span>
-            ) : null}
-          </TooltipTrigger>
-          <TooltipPopup side="top">
-            <span className="flex flex-col gap-1">
-              <span className="font-medium">Requested reviewers</span>
-              {reviewers.map((reviewer) => (
-                <span key={reviewer.login} className="flex items-center gap-1.5">
-                  <PullRequestActorAvatar actor={reviewer} />
-                  <span>{reviewer.name?.trim() || reviewer.login}</span>
-                  {reviewer.name?.trim() ? (
-                    <span className="text-muted-foreground">{reviewer.login}</span>
-                  ) : null}
+                }
+              >
+                <checksPresentation.Icon
+                  aria-hidden
+                  className={cn("size-3.5 shrink-0", checksPresentation.toneClassName)}
+                />
+                <span className="text-muted-foreground tabular-nums">
+                  {completed.length}/{checks.length}
                 </span>
-              ))}
-            </span>
-          </TooltipPopup>
-        </Tooltip>
+              </TooltipTrigger>
+              <TooltipPopup side="top">{checksSummary}</TooltipPopup>
+            </Tooltip>
+          )}
+          {reviewDecision === null && reviewers.length === 0 ? null : (
+            <Tooltip disabled={reviewers.length === 0}>
+              <TooltipTrigger
+                render={
+                  <button
+                    type="button"
+                    aria-label={`Open #${link.number} reviews in the right panel`}
+                    onClick={openInPanel}
+                    onAuxClick={openInPanel}
+                    className={cn(DETAILS_BUTTON_CLASS, "shrink-0 gap-1")}
+                  />
+                }
+              >
+                {reviewDecision === null ? null : (
+                  <PullRequestReviewDecisionGlyph decision={reviewDecision} />
+                )}
+                {reviewers.length > 0 ? (
+                  <span className="flex shrink-0 items-center -space-x-1">
+                    {reviewers.slice(0, 3).map((reviewer) => (
+                      <PullRequestActorAvatar
+                        key={reviewer.login}
+                        actor={reviewer}
+                        className="size-4 ring-1 ring-background"
+                      />
+                    ))}
+                  </span>
+                ) : null}
+              </TooltipTrigger>
+              <TooltipPopup side="top">
+                <span className="flex flex-col gap-1">
+                  <span className="font-medium">Requested reviewers</span>
+                  {reviewers.map((reviewer) => (
+                    <span key={reviewer.login} className="flex items-center gap-1.5">
+                      <PullRequestActorAvatar actor={reviewer} />
+                      <span>{reviewer.name?.trim() || reviewer.login}</span>
+                      {reviewer.name?.trim() ? (
+                        <span className="text-muted-foreground">{reviewer.login}</span>
+                      ) : null}
+                    </span>
+                  ))}
+                </span>
+              </TooltipPopup>
+            </Tooltip>
+          )}
+        </div>
+        {checksExpanded && checks.length > 0 ? (
+          <ul id="thread-details-pull-request-checks" className="flex flex-col">
+            {listedChecks.map((check, index) => {
+              const row = (
+                <>
+                  <PullRequestCheckStatusIcon status={check.status} />
+                  <span className="min-w-0 flex-1 truncate">{check.name}</span>
+                  <span className="shrink-0 text-muted-foreground">
+                    {pullRequestCheckStatusLabel(check)}
+                  </span>
+                </>
+              );
+              const url = check.url;
+              return (
+                // oxlint-disable-next-line react/no-array-index-key -- Check names can repeat; rows hold no state.
+                <li key={`${index}:${check.name}`}>
+                  {url === null ? (
+                    <span className="flex h-6 min-w-0 items-center gap-2 px-1.5">{row}</span>
+                  ) : (
+                    <button
+                      type="button"
+                      aria-label={`${check.name}: ${pullRequestCheckStatusLabel(check)}. Open details`}
+                      onClick={() => void readLocalApi()?.shell.openExternal(url)}
+                      className={cn(DETAILS_BUTTON_CLASS, "w-full")}
+                    >
+                      {row}
+                    </button>
+                  )}
+                </li>
+              );
+            })}
+            {hiddenPassed > 0 ? (
+              <li className="flex h-6 items-center px-1.5 text-muted-foreground">
+                {hiddenPassed} passed
+              </li>
+            ) : null}
+          </ul>
+        ) : null}
       </div>
     </ThreadDetailsSection>
   );
