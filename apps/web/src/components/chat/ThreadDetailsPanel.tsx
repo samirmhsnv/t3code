@@ -134,6 +134,14 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
         props.draftId
           ? []
           : [
+              <ThreadDetailsPullRequestSection key="pull-request" threadRef={activeThreadRef} />,
+              visible.automations ? (
+                <ThreadAutomationsPanel
+                  key="automations"
+                  environmentId={props.environmentId}
+                  threadId={props.threadId}
+                />
+              ) : null,
               visible.lineage || visible.sideChats ? (
                 <ThreadRelationshipsPanel
                   key="relationships"
@@ -207,19 +215,8 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
                 </ThreadDetailsSection>
               ) : null}
 
-              {props.draftId ? null : (
-                <ThreadDetailsPullRequestSection threadRef={activeThreadRef} />
-              )}
-
               {density === "full" && !props.draftId && visible.servers ? (
                 <ThreadServersPanel environmentId={props.environmentId} threadId={props.threadId} />
-              ) : null}
-
-              {density === "full" && !props.draftId && visible.automations ? (
-                <ThreadAutomationsPanel
-                  environmentId={props.environmentId}
-                  threadId={props.threadId}
-                />
               ) : null}
 
               {visible.usage ? <ThreadDetailsUsage {...props.usage} /> : null}
