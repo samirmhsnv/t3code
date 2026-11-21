@@ -14,10 +14,12 @@ export function createProjectRepositoriesEnvironmentAtoms<R, E>(
       tag: WS_METHODS.sourceControlGithubOwners,
       staleTimeMs: 10 * 60_000,
     }),
+    // Commits made after the card mounted must clear it; the server caches for the same span.
     nestedChanges: createEnvironmentRpcQueryAtomFamily(runtime, {
       label: "environment-data:project-repositories:nested-changes",
       tag: WS_METHODS.sourceControlNestedRepoChanges,
       staleTimeMs: 15_000,
+      refreshIntervalMs: 15_000,
     }),
   };
 }
